@@ -1,6 +1,9 @@
 import { BackupFormatError, StoreWriteError, type EventStore } from '../../store/store';
 import { eventsToIcs } from './ics';
-import { downloadText, exportFileName, pickTextFile } from './files';
+import { downloadText, exportFileName, FileTooLargeError, pickTextFile } from './files';
+
+/** Checked on the file's size before reading it; the store checks the text again. */
+const MAX_BACKUP_BYTES = 10_000_000;
 
 export type ExportFormat = 'ics' | 'json';
 
@@ -27,8 +30,9 @@ export function exportEvents(store: EventStore, format: ExportFormat, now: Date)
 export async function importBackupFile(store: EventStore): Promise<string | null> {
   let file: { name: string; text: string } | null;
   try {
-    file = await pickTextFile('.json,application/json');
-  } catch {
+    file = await pickTextFile('.json,application/json', MAX_BACKUP_BYTES);
+  } catch (err) {
+    if (err instanceof FileTooLargeError) return '백업 파일이 너무 큽니다.';
     return '파일을 읽지 못했습니다.';
   }
   if (!file) return null;

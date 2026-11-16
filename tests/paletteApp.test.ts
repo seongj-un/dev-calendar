@@ -221,7 +221,7 @@ describe('export', () => {
 
 describe('JSON backup import', () => {
   /** Makes the file picker answer with `content` (or nothing) without a real dialog. */
-  function pick(content: string | null) {
+  function pick(content: string | null, size?: number) {
     vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (
       this: HTMLInputElement,
     ) {
@@ -230,7 +230,7 @@ describe('JSON backup import', () => {
         return;
       }
       Object.defineProperty(this, 'files', {
-        value: [{ name: 'backup.json', text: () => Promise.resolve(content) }],
+        value: [{ name: 'backup.json', size, text: () => Promise.resolve(content) }],
       });
       this.dispatchEvent(new Event('change'));
     });
@@ -266,6 +266,22 @@ describe('JSON backup import', () => {
     expect(await importBackupFile(store)).toBe('JSON 파일이 아닙니다.');
     pick('{"app":"other","events":[]}');
     expect(await importBackupFile(store)).toBe('datebook 백업 파일이 아닙니다.');
+    expect(store.list()).toHaveLength(1);
+  });
+
+  test('refuses a backup over the size limit without reading it', async () => {
+    const { store } = setup([{ title: '배포', start: '2026-12-20' }]);
+    const read = vi.fn(() => Promise.resolve('{}'));
+    vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (
+      this: HTMLInputElement,
+    ) {
+      Object.defineProperty(this, 'files', {
+        value: [{ name: 'big.json', size: 10_000_001, text: read }],
+      });
+      this.dispatchEvent(new Event('change'));
+    });
+    expect(await importBackupFile(store)).toBe('백업 파일이 너무 큽니다.');
+    expect(read).not.toHaveBeenCalled();
     expect(store.list()).toHaveLength(1);
   });
 

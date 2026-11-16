@@ -19,8 +19,17 @@ export function exportFileName(now: Date, ext: 'ics' | 'json'): string {
   return `datebook-${localIsoDate(now)}.${ext}`;
 }
 
-/** Lets the person pick one file and returns its text, or null when they cancel. */
-export function pickTextFile(accept: string): Promise<{ name: string; text: string } | null> {
+/** The chosen file is bigger than the limit; it was not read. */
+export class FileTooLargeError extends Error {}
+
+/**
+ * Lets the person pick one file and returns its text, or null when they cancel.
+ * With `maxBytes`, a bigger file is refused from its size before any of it is read.
+ */
+export function pickTextFile(
+  accept: string,
+  maxBytes = Infinity,
+): Promise<{ name: string; text: string } | null> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -37,6 +46,10 @@ export function pickTextFile(accept: string): Promise<{ name: string; text: stri
       done();
       if (!file) {
         resolve(null);
+        return;
+      }
+      if (file.size > maxBytes) {
+        reject(new FileTooLargeError());
         return;
       }
       file.text().then((text) => resolve({ name: file.name, text }), reject);
