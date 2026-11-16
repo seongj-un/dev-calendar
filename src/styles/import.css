@@ -685,6 +685,8 @@
   }
   .dlg-import,
   .dlg-settings {
+    width: 100%;
+    max-width: 100%;
     margin-top: auto;
     max-height: calc(100dvh - 24px);
   }
@@ -720,7 +722,7 @@
   .pv-table .c-edit {
     width: auto;
   }
-  .pv-row {
+  .pv-table .pv-row {
     display: grid;
     grid-template-columns: 44px minmax(0, 1fr) 44px;
     grid-template-areas:
@@ -730,41 +732,41 @@
       '.   state state';
     padding: 6px 0;
   }
-  .pv-row td {
+  .pv-table .pv-row td {
     padding: 2px 0;
   }
-  .pv-row .c-chk {
+  .pv-table .pv-row .c-chk {
     grid-area: chk;
     display: grid;
     place-items: center;
     min-height: 44px;
   }
-  .pv-row .c-title {
+  .pv-table .pv-row .c-title {
     grid-area: title;
     align-self: center;
   }
-  .pv-row .c-edit {
+  .pv-table .pv-row .c-edit {
     grid-area: edit;
   }
-  .pv-row .c-edit .icon-btn {
+  .pv-table .pv-row .c-edit .icon-btn {
     width: 44px;
     height: 44px;
   }
-  .pv-row .c-date {
+  .pv-table .pv-row .c-date {
     grid-area: date;
   }
-  .pv-row .c-kind {
+  .pv-table .pv-row .c-kind {
     grid-area: kind;
     font-size: 12.5px;
     color: var(--mute);
   }
-  .pv-row .c-state {
+  .pv-table .pv-row .c-state {
     grid-area: state;
   }
-  .pv-row .why {
+  .pv-table .pv-row .why {
     display: none;
   }
-  .pv-row.editing {
+  .pv-table .pv-row.editing {
     grid-template-areas:
       'title title title'
       'date  date  date'
@@ -772,18 +774,18 @@
       'state state state';
     padding: 10px 12px;
   }
-  .pv-row.editing .c-chk,
-  .pv-row.editing .c-edit {
+  .pv-table .pv-row.editing .c-chk,
+  .pv-table .pv-row.editing .c-edit {
     display: none;
   }
-  .pv-row.editing .in,
-  .pv-row.editing .btn {
+  .pv-table .pv-row.editing .in,
+  .pv-table .pv-row.editing .btn {
     height: 44px;
   }
-  .pv-row.editing .in-date {
+  .pv-table .pv-row.editing .in-date {
     width: 96px;
   }
-  .pv-row.editing .c-state .btn {
+  .pv-table .pv-row.editing .c-state .btn {
     height: 44px;
   }
   .pv-group th {
