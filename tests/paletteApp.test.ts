@@ -151,21 +151,18 @@ describe('command palette', () => {
     expect(JSON.parse(storage.map.get('datebook:prefs') ?? '{}').theme).toBe('dark');
   });
 
-  test('import and settings are announced as a cancelable event; unhandled ones say so', () => {
+  test('i and , open the import and settings windows directly', () => {
     setup();
-    const seen: string[] = [];
-    const listener = (e: Event) => {
-      seen.push((e as CustomEvent).detail.type);
-      e.preventDefault();
-    };
-    document.addEventListener('datebook:command', listener);
     key('i', document.body);
-    key(',', document.body);
-    document.removeEventListener('datebook:command', listener);
-    expect(seen).toEqual(['import', 'settings']);
+    expect(document.querySelector('.dlg-import')).not.toBeNull();
     expect($('.toasts').textContent).not.toContain('연결되지 않았습니다');
-    key('i', document.body);
-    expect($('.toasts').textContent).toContain('이 기능은 아직 연결되지 않았습니다.');
+  });
+
+  test(', opens the settings window', () => {
+    setup();
+    key(',', document.body);
+    expect(document.querySelector('.dlg-settings')).not.toBeNull();
+    expect($('.toasts').textContent).not.toContain('연결되지 않았습니다');
   });
 
   test('Escape closes it and focus goes back where it was', () => {

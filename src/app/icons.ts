@@ -27,6 +27,19 @@ const SHAPES = {
     ['circle', 11, 11, 6.5],
     ['path', 'm16 16 4.5 4.5'],
   ],
+  import: [
+    ['path', 'M3 12h11M10 8l4 4-4 4'],
+    ['path', 'M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5'],
+  ],
+  sliders: [
+    ['path', 'M4 7h10M18 7h2M4 17h2M10 17h10'],
+    ['circle', 16, 7, 2],
+    ['circle', 8, 17, 2],
+  ],
+  pencil: [
+    ['path', 'M4 20h4L19 9l-4-4L4 16z'],
+    ['path', 'M13.5 6.5l4 4'],
+  ],
   trash: [['path', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13']],
   cmd: [['path', 'M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3']],
 } satisfies Record<string, Shape[]>;

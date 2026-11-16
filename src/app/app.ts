@@ -18,9 +18,12 @@ import {
   weekOf,
   type KindKey,
 } from './layout';
+import { openImportDialog, type ImportDone, type ImportTab } from './import-ui/importDialog';
 import { parseLine } from './lineParse';
 import { renderGrid } from './month';
 import { effectiveTheme, loadPrefs, savePrefs, type Prefs } from './prefs';
+import { openSettingsDialog } from './settings/settingsDialog';
+import { loadNeisKey, loadSchool, saveNeisKey, saveSchool } from './settings/neisPrefs';
 import { renderSide } from './side';
 import { eventModeAnnouncement, renderStatus } from './status';
 import { Toaster } from './toast';
@@ -108,6 +111,28 @@ export class App {
           },
           icon('search'),
           h('kbd', { 'aria-hidden': 'true' }, isMac() ? '⌘K' : 'Ctrl K'),
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'icon-btn',
+            'data-action': 'import',
+            'aria-label': '학사일정 가져오기 (I)',
+            'aria-keyshortcuts': 'I',
+          },
+          icon('import'),
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'icon-btn',
+            'data-action': 'settings',
+            'aria-label': '설정 (,)',
+            'aria-keyshortcuts': ',',
+          },
+          icon('sliders'),
         ),
         this.themeBtn,
         h(
@@ -575,6 +600,13 @@ export class App {
         case 'D':
           this.toggleTheme();
           return true;
+        case 'i':
+        case 'I':
+          this.openImport();
+          return true;
+        case ',':
+          this.openSettings();
+          return true;
         case 'y':
         case 'Y':
           void this.copyLink();
@@ -588,13 +620,6 @@ export class App {
         case 'g':
         case 'G':
           this.openPalette('>goto ');
-          return true;
-        case 'i':
-        case 'I':
-          this.runCommand({ type: 'import' });
-          return true;
-        case ',':
-          this.runCommand({ type: 'settings' });
           return true;
         case 'Escape':
           if (!this.filter) return false;
@@ -648,6 +673,8 @@ export class App {
       if (action === 'add') this.openAdd();
       else if (action === 'theme') this.toggleTheme();
       else if (action === 'palette') this.openPalette();
+      else if (action === 'import') this.openImport();
+      else if (action === 'settings') this.openSettings();
       else if (action === 'prev') this.moveMonth(-1);
       else if (action === 'next') this.moveMonth(1);
       else if (action === 'today') this.moveTo(this.today, { announce: true });
@@ -791,6 +818,92 @@ export class App {
     });
   }
 
+  // ---------- import and settings ----------
+
+  private afterModal(returnEl: HTMLElement | null): void {
+    this.editorOpen = false;
+    if (returnEl && returnEl.isConnected) returnEl.focus();
+    else this.focusCell();
+  }
+
+  private openImport(tab?: ImportTab): void {
+    const returnEl = document.activeElement as HTMLElement | null;
+    const storage = this.deps.prefsStorage;
+    this.editorOpen = true;
+    openImportDialog(this.deps.root, {
+      store: this.store,
+      grade: this.prefs.grade,
+      today: this.now(),
+      neisKey: loadNeisKey(storage),
+      school: loadSchool(storage),
+      tab,
+      onGrade: (grade) => {
+        this.prefs = { ...this.prefs, grade };
+        savePrefs(storage, this.prefs);
+        this.render();
+      },
+      onSchool: (school) => void saveSchool(storage, school),
+      onOpenSettings: () => this.openSettings(),
+      onImported: (done) => this.afterImport(done),
+      onClose: () => this.afterModal(returnEl),
+    });
+  }
+
+  private afterImport({ batch, added, skipped }: ImportDone): void {
+    if (!added.length) {
+      this.toaster.show({
+        message: '새로 넣은 일정이 없습니다. 모두 이미 달력에 있는 일정입니다.',
+        duration: 8000,
+      });
+      return;
+    }
+    // Show the month that holds the first event on or after today, else the last one.
+    const starts = added.map((e) => e.start).sort();
+    this.cursor = starts.find((d) => d >= this.today) ?? starts.at(-1)!;
+    this.evId = null;
+    this.writeHash();
+    this.render();
+    this.toaster.show({
+      message: `학사일정 ${added.length}개를 달력에 넣었습니다.${skipped ? ` ${skipped}개는 이미 있어 뺐습니다.` : ''}`,
+      undo: () => {
+        this.guardWrite(() => this.store.removeBatch(batch.id));
+        this.say('가져오기를 되돌렸습니다.');
+      },
+      duration: 8000,
+    });
+  }
+
+  private openSettings(): void {
+    const returnEl = document.activeElement as HTMLElement | null;
+    const storage = this.deps.prefsStorage;
+    this.editorOpen = true;
+    openSettingsDialog(this.deps.root, {
+      store: this.store,
+      prefs: this.prefs,
+      neisKey: loadNeisKey(storage),
+      school: loadSchool(storage),
+      onKey: (key) => saveNeisKey(storage, key),
+      onSchool: (school) => void saveSchool(storage, school),
+      onPrefs: (prefs) => {
+        this.prefs = prefs;
+        savePrefs(storage, prefs);
+        this.applyTheme();
+        this.render();
+      },
+      onGoto: (date) => this.moveTo(date as IsoDate, { focus: true }),
+      onDeleted: (message, undo) =>
+        this.toaster.show({
+          message,
+          undo: () => {
+            this.guardWrite(undo);
+            this.say('삭제를 되돌렸습니다.');
+          },
+          duration: 8000,
+        }),
+      onClose: () => this.afterModal(returnEl),
+    });
+  }
+
   private undoAdd(id: string): void {
     this.guardWrite(() => this.store.remove(id));
     this.say('추가를 되돌렸습니다.');
@@ -922,6 +1035,12 @@ export class App {
         return;
       case 'help':
         this.help.open();
+        return;
+      case 'import':
+        this.openImport();
+        return;
+      case 'settings':
+        this.openSettings();
         return;
       default: {
         const handled = !document.dispatchEvent(
