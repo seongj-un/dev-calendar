@@ -44,10 +44,16 @@ export function openSettingsDialog(root: HTMLElement, opts: SettingsOptions): { 
   let confirmId: string | null = null;
   let closed = false;
   let batchErr: string | null = null;
+  /** Deletes the person can still undo; shown in the window because a toast behind it cannot be reached. */
+  let pending: { message: string; undo: () => void }[] = [];
+  let undoNote: string | null = null;
 
   const finish = () => {
     if (closed) return;
     closed = true;
+    // Hand the last undo to the calendar's toast once the window is gone.
+    const last = pending.at(-1);
+    if (last) opts.onDeleted(last.message, last.undo);
     if (dialog.open) dialog.close();
     dialog.remove();
     opts.onClose();
@@ -256,7 +262,14 @@ export function openSettingsDialog(root: HTMLElement, opts: SettingsOptions): { 
 
   // ---------- batches ----------
   const deleteBatch = (info: BatchInfo) => {
-    const snapshot = opts.store.exportBackup();
+    // A backup of only this batch, so undoing one delete never brings back another.
+    const doc = JSON.parse(opts.store.exportBackup()) as {
+      events: { batchId?: string }[];
+      batches: { id: string }[];
+    };
+    doc.events = doc.events.filter((e) => e.batchId === info.batch.id);
+    doc.batches = doc.batches.filter((b) => b.id === info.batch.id);
+    const snapshot = JSON.stringify(doc);
     let removed: number;
     try {
       removed = opts.store.removeBatch(info.batch.id);
@@ -271,14 +284,49 @@ export function openSettingsDialog(root: HTMLElement, opts: SettingsOptions): { 
     }
     confirmId = null;
     batchErr = null;
+    undoNote = null;
+    const entry = {
+      message: `${removed}개를 지웠습니다.`,
+      // The backup holds this batch's events and record; merging puts back what is missing.
+      undo: () => {
+        opts.store.restoreBackup(snapshot, 'merge');
+      },
+    };
+    pending.push(entry);
     draw();
-    opts.onDeleted(`${removed}개를 지웠습니다.`, () => {
-      // The backup holds every event and batch as they were; merging it puts back the missing ones.
-      opts.store.restoreBackup(snapshot, 'merge');
-    });
-    const next = dialog.querySelector<HTMLElement>('[data-fk^="del:"]');
-    if (next) next.focus();
-    else focusFk('batches-h');
+    focusFk('undo-last');
+  };
+
+  const undoLast = () => {
+    const entry = pending.pop();
+    if (!entry) return;
+    try {
+      entry.undo();
+      undoNote = '되돌렸습니다.';
+      batchErr = null;
+    } catch (err) {
+      pending.push(entry);
+      batchErr = err instanceof Error ? err.message : '되돌리지 못했습니다.';
+    }
+    draw();
+    focusFk(pending.length ? 'undo-last' : 'batches-h');
+  };
+
+  const undoLine = (): HTMLElement | null => {
+    const last = pending.at(-1);
+    if (!last && !undoNote) return null;
+    return h(
+      'div',
+      { class: 'undo-line', role: 'status' },
+      h('span', {}, last ? last.message : undoNote),
+      last
+        ? h(
+            'button',
+            { type: 'button', class: 'btn btn-text', 'data-fk': 'undo-last', onclick: undoLast },
+            '되돌리기',
+          )
+        : null,
+    );
   };
 
   const batchRow = (info: BatchInfo): HTMLElement => {
@@ -461,6 +509,7 @@ export function openSettingsDialog(root: HTMLElement, opts: SettingsOptions): { 
         ),
         h('h3', { class: 'sec-h', tabindex: '-1', 'data-fk': 'batches-h' }, '가져온 일정'),
         batchErr ? h('p', { class: 'form-err', role: 'alert' }, batchErr) : null,
+        undoLine(),
         infos.length
           ? h('ul', { class: 'batches' }, ...infos.map(batchRow))
           : h(

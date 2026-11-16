@@ -849,7 +849,7 @@ export class App {
     });
   }
 
-  private afterImport({ batch, added }: ImportDone): void {
+  private afterImport({ batch, added, skipped }: ImportDone): void {
     if (!added.length) {
       this.toaster.show({
         message: '새로 넣은 일정이 없습니다. 모두 이미 달력에 있는 일정입니다.',
@@ -864,7 +864,7 @@ export class App {
     this.writeHash();
     this.render();
     this.toaster.show({
-      message: `학사일정 ${added.length}개를 달력에 넣었습니다.`,
+      message: `학사일정 ${added.length}개를 달력에 넣었습니다.${skipped ? ` ${skipped}개는 이미 있어 뺐습니다.` : ''}`,
       undo: () => {
         this.guardWrite(() => this.store.removeBatch(batch.id));
         this.say('가져오기를 되돌렸습니다.');

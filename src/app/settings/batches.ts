@@ -20,22 +20,26 @@ function isEdited(e: CalendarEvent): boolean {
 /** Import batches, newest first, with what is left of each. */
 export function batchInfos(store: EventStore): BatchInfo[] {
   const events = store.list();
-  return [...store.batches()]
-    .sort((a, b) => b.importedAt.localeCompare(a.importedAt))
-    .map((batch) => {
-      const own = events.filter((e) => e.batchId === batch.id);
-      const first = own.map((e) => e.start).sort()[0] ?? null;
-      const school = batch.source.startsWith('neis:');
-      return {
-        batch,
-        count: own.length,
-        edited: own.filter(isEdited).length,
-        firstDate: first,
-        kind: school ? 'school' : 'file',
-        // Without a key NEIS answers five rows; a batch that small from NEIS is a sample.
-        sample: school && batch.count <= 5,
-      };
-    });
+  return (
+    [...store.batches()]
+      .sort((a, b) => b.importedAt.localeCompare(a.importedAt))
+      // A batch whose events were all deleted one by one has nothing left to delete.
+      .filter((batch) => events.some((e) => e.batchId === batch.id))
+      .map((batch) => {
+        const own = events.filter((e) => e.batchId === batch.id);
+        const first = own.map((e) => e.start).sort()[0] ?? null;
+        const school = batch.source.startsWith('neis:');
+        return {
+          batch,
+          count: own.length,
+          edited: own.filter(isEdited).length,
+          firstDate: first,
+          kind: school ? 'school' : 'file',
+          // Without a key NEIS answers five rows; a batch that small from NEIS is a sample.
+          sample: school && batch.count <= 5,
+        };
+      })
+  );
 }
 
 /** "12월 8일 21:14" in the browser's time zone. */

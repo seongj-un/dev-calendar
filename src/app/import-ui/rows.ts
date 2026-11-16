@@ -96,6 +96,50 @@ export function parseShortDate(value: string, academicYear: number): IsoDate | n
   return isValidYmd(y, m, d) ? `${y}-${pad2(m)}-${pad2(d)}` : null;
 }
 
+/**
+ * Reads a date typed into a row's edit field. A value that still equals what the
+ * field was filled with keeps the original date, and a changed month-day is placed
+ * in the original date's academic year, so renaming a row never moves its dates.
+ * `original` is null for a row the person added; then `fallbackYear` applies.
+ */
+export function readEditedDate(
+  value: string,
+  original: IsoDate | null,
+  fallbackYear: number,
+): IsoDate | null {
+  if (original && value.trim() === shortDate(original)) return original;
+  return parseShortDate(value, original ? academicYearOf(original) : fallbackYear);
+}
+
+/**
+ * Rows that will really be added: checked, named, not already in the calendar,
+ * and the first of any rows that share a title and dates.
+ */
+export function rowsToImport(rows: readonly PreviewRow[], ctx: RowContext): PreviewRow[] {
+  const seen = new Set<string>();
+  const out: PreviewRow[] = [];
+  for (const row of rows) {
+    if (!row.include || !row.event.title.trim()) continue;
+    const key = eventKey(row.event);
+    if (ctx.existing.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
+/** Ids of checked rows that repeat an earlier checked row of the same file. */
+export function duplicateIds(rows: readonly PreviewRow[], ctx: RowContext): Set<number> {
+  const keep = new Set(rowsToImport(rows, ctx).map((r) => r.id));
+  const dup = new Set<number>();
+  for (const row of rows) {
+    if (row.include && row.event.title.trim() && !ctx.existing.has(eventKey(row.event))) {
+      if (!keep.has(row.id)) dup.add(row.id);
+    }
+  }
+  return dup;
+}
+
 /** Academic year for the rows: the parser's, else the year of the first row. */
 export function rowsAcademicYear(
   events: readonly ImportedEvent[],

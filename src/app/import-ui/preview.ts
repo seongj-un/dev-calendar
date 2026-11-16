@@ -4,10 +4,13 @@ import { h } from '../dom';
 import { icon } from '../icons';
 import {
   countBy,
+  defaultInclude,
   groupByMonth,
   matchesFilter,
-  parseShortDate,
+  readEditedDate,
+  duplicateIds,
   refreshIncludes,
+  rowsToImport,
   shortDate,
   statusOf,
   type PreviewRow,
@@ -89,8 +92,19 @@ export function createPreview(props: PreviewProps): Preview {
   const live = h('div', { class: 'sr-only', 'aria-live': 'polite' });
 
   const statusOfRow = (row: PreviewRow) => statusOf(row, ctx);
-  const countIncluded = () => rows.filter((r) => r.include && r.event.title.trim()).length;
+  const countIncluded = () => rowsToImport(rows, ctx).length;
   const changed = () => props.onChange(countIncluded());
+
+  /** Focus the pencil of a row; when the filter no longer shows it, the next pencil or the filter. */
+  const focusEdit = (id: number) => {
+    const doc = table.ownerDocument;
+    const own = doc.querySelector<HTMLElement>(`[data-fk="edit:${id}"]`);
+    const fallback =
+      doc.querySelector<HTMLElement>('.pv-table [data-fk^="edit:"]') ??
+      doc.querySelector<HTMLElement>('input[name="pv-filter"]:checked') ??
+      heading;
+    (own ?? fallback).focus();
+  };
 
   const focusFk = (fk: string) =>
     table.ownerDocument.querySelector<HTMLElement>(`[data-fk="${fk}"]`)?.focus();
@@ -118,7 +132,7 @@ export function createPreview(props: PreviewProps): Preview {
   };
 
   // ---------- rows ----------
-  const viewRow = (row: PreviewRow): HTMLElement => {
+  const viewRow = (row: PreviewRow, dup: boolean): HTMLElement => {
     const e = row.event;
     const status = statusOfRow(row);
     const check = h('input', {
@@ -172,6 +186,7 @@ export function createPreview(props: PreviewProps): Preview {
           STATUS_WORD[status],
         ),
         status === 'check' && e.review ? h('span', { class: 'why' }, e.review) : null,
+        dup ? h('span', { class: 'badge' }, '중복, 뺌') : null,
         e.mergedDays && e.mergedDays > 1
           ? h('span', { class: 'badge' }, `${e.mergedDays}일 합침`)
           : null,
@@ -226,9 +241,13 @@ export function createPreview(props: PreviewProps): Preview {
       for (const f of [start, end, title]) f.removeAttribute('aria-invalid');
       const name = title.value.trim().replace(/\s+/g, ' ');
       if (!name) return showErr('일정 이름을 입력해 주세요.', title);
-      const s = parseShortDate(start.value, props.academicYear);
+      // Rows from a file keep their own academic year; only a row the person added uses the file's.
+      const added = addedId === row.id;
+      const s = readEditedDate(start.value, added ? null : e.start, props.academicYear);
       if (!s) return showErr('시작일을 3.10 처럼 입력해 주세요.', start);
-      const t = end.value.trim() ? parseShortDate(end.value, props.academicYear) : s;
+      const t = end.value.trim()
+        ? readEditedDate(end.value, added ? null : e.end, props.academicYear)
+        : s;
       if (!t) return showErr('종료일을 3.10 처럼 입력해 주세요.', end);
       if (t < s) return showErr('종료일이 시작일보다 앞섭니다.', end);
       const category: Category = isCategory(kind.value) ? kind.value : e.category;
@@ -243,11 +262,12 @@ export function createPreview(props: PreviewProps): Preview {
       };
       if (e.review) delete row.event.review;
       row.edited = true;
-      if (!row.touched) row.include = true;
+      // A row that is already in the calendar stays unchecked after an edit.
+      if (!row.touched) row.include = defaultInclude(row, ctx);
       editing = null;
       addedId = null;
       drawAll();
-      focusFk(`edit:${row.id}`);
+      focusEdit(row.id);
       live.textContent = '고쳤습니다.';
     };
     const cancel = () => {
@@ -306,7 +326,11 @@ export function createPreview(props: PreviewProps): Preview {
   };
 
   const drawTable = () => {
-    const visible = rows.filter((r) => r.id === editing || matchesFilter(r, filter, ctx));
+    // Sorted by start so a row whose date changed moves to its month; the sort is stable.
+    const visible = rows
+      .filter((r) => r.id === editing || matchesFilter(r, filter, ctx))
+      .sort((a, b) => a.event.start.localeCompare(b.event.start));
+    const dups = duplicateIds(rows, ctx);
     const head = h(
       'thead',
       { class: 'pv-head' },
@@ -335,7 +359,7 @@ export function createPreview(props: PreviewProps): Preview {
             h('b', {}, `${g.rows.length}건`),
           ),
         ),
-        ...g.rows.map((r) => (r.id === editing ? editRow(r) : viewRow(r))),
+        ...g.rows.map((r) => (r.id === editing ? editRow(r) : viewRow(r, dups.has(r.id)))),
       ),
     );
     table.replaceChildren(head, ...bodies);
@@ -427,7 +451,7 @@ export function createPreview(props: PreviewProps): Preview {
 
   return {
     el,
-    included: () => rows.filter((r) => r.include && r.event.title.trim()).map((r) => r.event),
+    included: () => rowsToImport(rows, ctx).map((r) => r.event),
     tags: () =>
       tagIn.value
         .split(/[,\s]+/)

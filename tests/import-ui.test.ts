@@ -130,11 +130,11 @@ describe('import window', () => {
     expect(rows).toHaveLength(4);
     const state = (r: HTMLElement) => r.getAttribute('data-status');
     // sorted as the parser sent them
-    expect(rows.map(state)).toEqual(['new', 'grade', 'new', 'check']);
+    expect(rows.map(state)).toEqual(['new', 'new', 'grade', 'check']);
     expect(all<HTMLInputElement>('.pv-check').map((c) => c.checked)).toEqual([
       true,
-      false,
       true,
+      false,
       false,
     ]);
     expect($('[data-fk=confirm]').textContent).toBe('2개 달력에 반영');
@@ -230,8 +230,8 @@ describe('import window', () => {
     grade.dispatchEvent(new Event('change'));
     expect(calls.grade).toEqual([1]);
     expect(all<HTMLInputElement>('.pv-check').map((c) => c.checked)).toEqual([
-      false,
       true,
+      false,
       true,
       false,
     ]);
@@ -265,6 +265,128 @@ describe('import window', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test("renaming a row keeps dates outside the first row's academic year (ics with mixed years)", async () => {
+    // First row is in February, so the guessed academic year is 2025 and May 2026 is outside it.
+    openImport({
+      importFile: async () =>
+        result([row('예비소집', '2026-02-20'), row('체육대회', '2026-05-15')], {
+          academicYear: undefined,
+        }),
+    });
+    await pickFile();
+    const index = all('.pv-row').findIndex((r) => r.textContent?.includes('체육대회'));
+    all('.pv-row .c-edit button')[index]!.click();
+    $<HTMLInputElement>('.pv-row.editing [data-fk^="ed-title"]').value = '체육 대회';
+    $<HTMLButtonElement>('.pv-row.editing .btn-primary').click();
+    $('[data-fk=confirm]').click();
+    const saved = store.list().find((e) => e.title === '체육 대회');
+    expect(saved?.start).toBe('2026-05-15');
+    expect(saved?.end).toBe('2026-05-15');
+  });
+
+  test('renaming a range that crosses into the next academic year keeps both ends', async () => {
+    openImport({
+      importFile: async () =>
+        result([row('학년말 방학', '2027-02-26', { end: '2027-03-01' })], { academicYear: 2026 }),
+    });
+    await pickFile();
+    all('.pv-row .c-edit button')[0]!.click();
+    $<HTMLInputElement>('.pv-row.editing [data-fk^="ed-title"]').value = '겨울 방학';
+    $<HTMLButtonElement>('.pv-row.editing .btn-primary').click();
+    expect(document.querySelector('.pv-row.editing')).toBeNull();
+    $('[data-fk=confirm]').click();
+    const saved = store.list()[0]!;
+    expect([saved.title, saved.start, saved.end]).toEqual([
+      '겨울 방학',
+      '2027-02-26',
+      '2027-03-01',
+    ]);
+  });
+
+  test("a changed month-day is read in the row's own academic year", async () => {
+    openImport({
+      importFile: async () => result([row('행사', '2027-01-10')], { academicYear: 2026 }),
+    });
+    await pickFile();
+    all('.pv-row .c-edit button')[0]!.click();
+    const [start, end] = Array.from(
+      $('.pv-row.editing').querySelectorAll<HTMLInputElement>('.in-date'),
+    );
+    start!.value = '1.12';
+    end!.value = '1.13';
+    $<HTMLButtonElement>('.pv-row.editing .btn-primary').click();
+    $('[data-fk=confirm]').click();
+    const saved = store.list()[0]!;
+    expect([saved.start, saved.end]).toEqual(['2027-01-12', '2027-01-13']);
+  });
+
+  test('opening and finishing an already-existing row does not check it', async () => {
+    store.add({
+      title: '개교기념일',
+      start: '2026-04-20',
+      end: '2026-04-20',
+      allDay: true,
+      category: 'academic',
+      tags: [],
+    });
+    openImport({
+      importFile: async () =>
+        result([row('개교기념일', '2026-04-20'), row('수학여행', '2026-05-11')]),
+    });
+    await pickFile();
+    expect($('[data-fk=confirm]').textContent).toBe('1개 달력에 반영');
+    all('.pv-row .c-edit button')[0]!.click();
+    $<HTMLButtonElement>('.pv-row.editing .btn-primary').click();
+    expect($('[data-fk=confirm]').textContent).toBe('1개 달력에 반영');
+    expect(all<HTMLInputElement>('.pv-check').map((c) => c.checked)).toEqual([false, true]);
+  });
+
+  test('the button counts what is added when a file repeats a row', async () => {
+    const { calls } = openImport({
+      importFile: async () =>
+        result([
+          row('수학여행', '2026-05-11'),
+          row('수학여행', '2026-05-11'),
+          row('체육대회', '2026-05-15'),
+        ]),
+    });
+    await pickFile();
+    expect($('[data-fk=confirm]').textContent).toBe('2개 달력에 반영');
+    expect(all('.pv-row .badge').some((b) => b.textContent === '중복, 뺌')).toBe(true);
+    $('[data-fk=confirm]').click();
+    const done = calls.imported[0] as { added: unknown[]; skipped: number };
+    expect(done.added).toHaveLength(2);
+    expect(store.list()).toHaveLength(2);
+  });
+
+  test('editing a row that leaves the filter moves focus to a control that exists', async () => {
+    openImport();
+    await pickFile();
+    const check = $<HTMLInputElement>('input[name=pv-filter][value=check]');
+    check.click();
+    check.dispatchEvent(new Event('change'));
+    $('.pv-row .c-edit button').click();
+    $<HTMLButtonElement>('.pv-row.editing .btn-primary').click();
+    expect(document.activeElement).not.toBe(document.body);
+    expect($('#import').contains(document.activeElement)).toBe(true);
+  });
+
+  test('a row moved to another month is listed under that month, not a repeated heading', async () => {
+    openImport({
+      importFile: async () =>
+        result([row('가', '2026-03-03'), row('나', '2026-03-10'), row('다', '2026-03-20')]),
+    });
+    await pickFile();
+    all('.pv-row .c-edit button')[1]!.click();
+    const [start, end] = Array.from(
+      $('.pv-row.editing').querySelectorAll<HTMLInputElement>('.in-date'),
+    );
+    start!.value = '4.02';
+    end!.value = '4.02';
+    $<HTMLButtonElement>('.pv-row.editing .btn-primary').click();
+    expect(all('.pv-group').map((g) => g.textContent)).toEqual(['3월 2건', '4월 1건']);
   });
 
   test('the NEIS tab without a key offers the key button and opens settings', async () => {
@@ -441,10 +563,58 @@ describe('settings window', () => {
     $<HTMLButtonElement>('.batches li.confirm .btn-primary').click();
     expect(store.list()).toHaveLength(0);
     expect(store.batches()).toHaveLength(0);
-    expect(calls.deleted[0]!.message).toContain(`${total}개`);
-    calls.deleted[0]!.undo();
+    // The undo is offered inside the window, because a toast behind a modal cannot be pressed.
+    const line = $('#settings .undo-line');
+    expect(line.getAttribute('role')).toBe('status');
+    expect(line.textContent).toContain(`${total}개를 지웠습니다`);
+    expect(document.activeElement?.getAttribute('data-fk')).toBe('undo-last');
+    expect(calls.deleted).toHaveLength(0);
+    $('[data-fk=undo-last]').click();
     expect(store.list()).toHaveLength(total);
     expect(store.batches()).toHaveLength(1);
+    expect(store.list().some((e) => e.title === '고친 제목')).toBe(true);
+    expect($('#settings .undo-line').textContent).toContain('되돌렸습니다');
+  });
+
+  test('an undo left pending when the window closes moves to the calendar toast', async () => {
+    openImport();
+    await pickFile();
+    $('[data-fk=confirm]').click();
+    const total = store.list().length;
+    const calls = openSettings();
+    $('[data-fk^="del:"]').click();
+    $<HTMLButtonElement>('.batches li.confirm .btn-primary').click();
+    $('#settings .d-f .btn').click();
+    expect(calls.closed).toBe(1);
+    expect(calls.deleted).toHaveLength(1);
+    calls.deleted[0]!.undo();
+    expect(store.list()).toHaveLength(total);
+  });
+
+  test('undoing one delete does not bring back another batch', async () => {
+    store.commitImport([row('가', '2026-03-03')], { source: 'file:a.pdf', label: 'a.pdf' });
+    store.commitImport([row('나', '2026-03-04')], { source: 'file:b.pdf', label: 'b.pdf' });
+    openSettings();
+    for (let i = 0; i < 2; i++) {
+      $('[data-fk^="del:"]').click();
+      $<HTMLButtonElement>('.batches li.confirm .btn-primary').click();
+    }
+    expect(store.list()).toHaveLength(0);
+    $('[data-fk=undo-last]').click();
+    expect(store.list()).toHaveLength(1);
+    expect(store.batches()).toHaveLength(1);
+  });
+
+  test('a batch whose events are all gone is not listed', () => {
+    const { batch, added } = store.commitImport([row('가', '2026-03-03')], {
+      source: 'file:a.pdf',
+      label: 'a.pdf',
+    });
+    store.remove(added[0]!.id);
+    openSettings();
+    expect(batch.id).toBeTruthy();
+    expect(document.querySelector('.batches')).toBeNull();
+    expect($('#settings .hint-line').textContent).toContain('가져오기');
   });
 
   test('Escape in the delete question cancels only the question', async () => {
