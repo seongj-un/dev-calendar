@@ -1,4 +1,4 @@
-import { academicYearOf, isValidYmd, pad2, parseIso, type IsoDate } from '../../model/date';
+import { academicYearOf, isValidYmd, pad2, parseIso, ymd, type IsoDate } from '../../model/date';
 import { eventKey } from '../../model/event';
 import type { ImportedEvent } from '../../import/types';
 
@@ -109,6 +109,25 @@ export function readEditedDate(
 ): IsoDate | null {
   if (original && value.trim() === shortDate(original)) return original;
   return parseShortDate(value, original ? academicYearOf(original) : fallbackYear);
+}
+
+/**
+ * Reads the end field of a row's edit form. An unchanged value keeps the original
+ * end; a changed month-day is read in the academic year of the row's (new) start,
+ * and one that lands before the start is the same day a year later, so shortening
+ * "2.26 - 3.01" to "2.28" stays in February of the start's year.
+ */
+export function readEditedEnd(
+  value: string,
+  original: IsoDate | null,
+  start: IsoDate,
+): IsoDate | null {
+  const v = value.trim();
+  if (original && v === shortDate(original)) return original;
+  const end = parseShortDate(v, academicYearOf(start));
+  if (!end || end >= start || /^\d{4}/.test(v)) return end;
+  const { year, month, day } = parseIso(end);
+  return ymd(year + 1, month, day);
 }
 
 /**

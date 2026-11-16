@@ -8,6 +8,7 @@ import {
   groupByMonth,
   matchesFilter,
   readEditedDate,
+  readEditedEnd,
   duplicateIds,
   refreshIncludes,
   rowsToImport,
@@ -241,13 +242,11 @@ export function createPreview(props: PreviewProps): Preview {
       for (const f of [start, end, title]) f.removeAttribute('aria-invalid');
       const name = title.value.trim().replace(/\s+/g, ' ');
       if (!name) return showErr('일정 이름을 입력해 주세요.', title);
-      // Rows from a file keep their own academic year; only a row the person added uses the file's.
-      const added = addedId === row.id;
-      const s = readEditedDate(start.value, added ? null : e.start, props.academicYear);
+      // Dates are read in the academic year of the date the field was filled with; a row the
+      // person added is filled from the last row, so it follows that row, not the file's first.
+      const s = readEditedDate(start.value, e.start, props.academicYear);
       if (!s) return showErr('시작일을 3.10 처럼 입력해 주세요.', start);
-      const t = end.value.trim()
-        ? readEditedDate(end.value, added ? null : e.end, props.academicYear)
-        : s;
+      const t = end.value.trim() ? readEditedEnd(end.value, e.end, s) : s;
       if (!t) return showErr('종료일을 3.10 처럼 입력해 주세요.', end);
       if (t < s) return showErr('종료일이 시작일보다 앞섭니다.', end);
       const category: Category = isCategory(kind.value) ? kind.value : e.category;

@@ -7,6 +7,7 @@ import {
   groupByMonth,
   matchesFilter,
   parseShortDate,
+  readEditedEnd,
   refreshIncludes,
   shortDate,
   statusOf,
@@ -134,6 +135,14 @@ describe('short dates', () => {
     expect(parseShortDate('13.01', 2026)).toBeNull();
     expect(parseShortDate('', 2026)).toBeNull();
     expect(parseShortDate('내일', 2026)).toBeNull();
+  });
+
+  test('an end is read after its start and moves a year when it would come first', () => {
+    expect(readEditedEnd('2.28', '2027-03-01', '2027-02-26')).toBe('2027-02-28');
+    expect(readEditedEnd('3.01', '2027-03-01', '2027-02-26')).toBe('2027-03-01');
+    expect(readEditedEnd('4.02', null, '2026-05-10')).toBe('2027-04-02');
+    expect(readEditedEnd('2.29', null, '2026-05-10')).toBeNull();
+    expect(readEditedEnd('2026-04-02', null, '2026-05-10')).toBe('2026-04-02');
   });
 });
 
