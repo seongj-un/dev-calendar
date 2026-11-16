@@ -39,7 +39,6 @@ export function pickNeisView(props: PickNeisProps): HTMLElement {
   const thisYear = academicYearOf(localIsoDate(props.today));
   const years = [thisYear + 1, thisYear, thisYear - 1, thisYear - 2];
   const query = h('input', {
-    class: 'in',
     type: 'search',
     id: 'neis-q',
     autocomplete: 'off',
