@@ -99,6 +99,8 @@ export function randomId(): string {
 export class EventStore {
   private data: StoreData = { version: 1, events: [], batches: [] };
   private readonly listeners = new Set<Listener>();
+  /** The stored text this.data was read from or written as; tells when another tab wrote. */
+  private seen: string | null = null;
   private readonly key: string;
   private readonly now: () => Date;
   private readonly newId: () => string;
@@ -113,6 +115,7 @@ export class EventStore {
     this.now = options.now ?? (() => new Date());
     this.newId = options.newId ?? randomId;
     const raw = storage.getItem(this.key);
+    this.seen = raw;
     if (raw !== null) {
       const parsed = readStoreData(raw);
       if (parsed) {
@@ -126,6 +129,37 @@ export class EventStore {
         }
       }
     }
+  }
+
+  /**
+   * Reads storage again when another tab changed it, and tells subscribers.
+   * Returns true when the data was replaced. Every write calls this first, so a
+   * tab that was open for a while never overwrites what another tab saved.
+   */
+  syncFromStorage(): boolean {
+    const raw = this.storage.getItem(this.key);
+    if (raw === this.seen) return false;
+    if (raw === null) {
+      this.data = { version: 1, events: [], batches: [] };
+    } else {
+      const parsed = readStoreData(raw);
+      // Unreadable text from another tab: keep what this tab has; the next write replaces it.
+      if (!parsed) return false;
+      this.data = parsed;
+    }
+    this.seen = raw;
+    for (const fn of this.listeners) fn();
+    return true;
+  }
+
+  /** Follows `storage` events of other tabs (pass `window`). Returns a stop function. */
+  watchStorage(target: Pick<EventTarget, 'addEventListener' | 'removeEventListener'>): () => void {
+    const handler = (event: Event) => {
+      const key = (event as Event & { key?: string | null }).key;
+      if (key === undefined || key === null || key === this.key) this.syncFromStorage();
+    };
+    target.addEventListener('storage', handler);
+    return () => target.removeEventListener('storage', handler);
   }
 
   subscribe(listener: Listener): () => void {
@@ -161,6 +195,7 @@ export class EventStore {
   }
 
   add(input: unknown): CalendarEvent {
+    this.syncFromStorage();
     const clean = sanitizeInput(input);
     this.ensureRoom(1);
     const stamp = this.now().toISOString();
@@ -177,6 +212,7 @@ export class EventStore {
 
   /** Applies a partial change; id, source, batch and creation time stay. */
   update(id: string, patch: Partial<EventInput>): CalendarEvent {
+    this.syncFromStorage();
     const current = this.get(id);
     if (!current) throw new EventValidationError('id', '일정을 찾을 수 없습니다.');
     const merged: Record<string, unknown> = { ...current, ...patch };
@@ -203,6 +239,7 @@ export class EventStore {
   }
 
   remove(id: string): boolean {
+    this.syncFromStorage();
     const events = this.data.events.filter((e) => e.id !== id);
     if (events.length === this.data.events.length) return false;
     this.commit({ ...this.data, events });
@@ -217,6 +254,7 @@ export class EventStore {
     rows: readonly ImportedEvent[],
     meta: { source: string; label: string; tags?: readonly string[] },
   ): ImportCommitResult {
+    this.syncFromStorage();
     const batchId = this.newId();
     const stamp = this.now().toISOString();
     const keys = this.existingKeys();
@@ -263,6 +301,7 @@ export class EventStore {
 
   /** Deletes every event of an import batch, edited ones included. Returns how many. */
   removeBatch(batchId: string): number {
+    this.syncFromStorage();
     const events = this.data.events.filter((e) => e.batchId !== batchId);
     const removed = this.data.events.length - events.length;
     const batches = this.data.batches.filter((b) => b.id !== batchId);
@@ -273,6 +312,7 @@ export class EventStore {
 
   /** Deletes every event that came from a source (all imports of one file or school). */
   removeSource(source: string): number {
+    this.syncFromStorage();
     const events = this.data.events.filter((e) => e.source !== source);
     const removed = this.data.events.length - events.length;
     const batches = this.data.batches.filter((b) => b.source !== source);
@@ -307,6 +347,7 @@ export class EventStore {
     } catch {
       throw new BackupFormatError('JSON 파일이 아닙니다.');
     }
+    this.syncFromStorage();
     if (
       typeof parsed !== 'object' ||
       parsed === null ||
@@ -362,12 +403,14 @@ export class EventStore {
   }
 
   private commit(next: StoreData): void {
+    const text = JSON.stringify(next);
     try {
-      this.storage.setItem(this.key, JSON.stringify(next));
+      this.storage.setItem(this.key, text);
     } catch (err) {
       throw new StoreWriteError(err);
     }
     this.data = next;
+    this.seen = text;
     for (const fn of this.listeners) fn();
   }
 }

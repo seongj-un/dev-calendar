@@ -173,6 +173,83 @@ describe('EventStore', () => {
     expect(store.list()).toHaveLength(1);
   });
 
+  describe('two tabs on one storage', () => {
+    const twoTabs = () => {
+      const storage = new MemoryStorage();
+      let n = 0;
+      const mk = (prefix: string) =>
+        new EventStore(storage, {
+          now: () => new Date('2026-11-16T09:00:00Z'),
+          newId: () => `${prefix}-${++n}`,
+        });
+      return { storage, a: mk('a'), b: mk('b') };
+    };
+
+    test('a write keeps what the other tab saved in between', () => {
+      const { storage, a, b } = twoTabs();
+      a.add({ title: 'A탭 일정', start: '2026-11-17' });
+      b.add({ title: 'B탭 일정', start: '2026-11-18' });
+      expect(new EventStore(storage).list().map((e) => e.title)).toEqual(['A탭 일정', 'B탭 일정']);
+      expect(b.list().map((e) => e.title)).toEqual(['A탭 일정', 'B탭 일정']);
+    });
+
+    test('update, remove, import and backup restore start from the stored state', () => {
+      const { storage, a, b } = twoTabs();
+      const x = a.add({ title: 'x', start: '2026-11-17' });
+      const y = a.add({ title: 'y', start: '2026-11-18' });
+      // b has not seen x or y yet.
+      expect(b.update(x.id, { title: 'x2' }).title).toBe('x2');
+      a.remove(y.id);
+      expect(b.remove(y.id)).toBe(false);
+      b.commitImport([row('가', '2026-03-02')], { source: 'file:a.pdf', label: 'a' });
+      a.restoreBackup(b.exportBackup(), 'merge');
+      a.removeSource('file:a.pdf');
+      const titles = new EventStore(storage).list().map((e) => e.title);
+      expect(titles).toEqual(['x2']);
+    });
+
+    test('a tab that did not write sees the other tab's data after syncing', () => {
+      const { a, b } = twoTabs();
+      a.add({ title: '1', start: '2026-11-17' });
+      b.add({ title: '2', start: '2026-11-17' });
+      // A tab that did not write only learns of it from the storage event.
+      expect(a.list()).toHaveLength(1);
+      expect(a.syncFromStorage()).toBe(true);
+      expect(a.list()).toHaveLength(2);
+      expect(a.syncFromStorage()).toBe(false);
+      expect(b.list()).toHaveLength(2);
+    });
+
+    test('a storage event from another tab reloads the data and tells subscribers', () => {
+      const { a, b } = twoTabs();
+      const target = new EventTarget();
+      let calls = 0;
+      b.subscribe(() => calls++);
+      const stop = b.watchStorage(target);
+      a.add({ title: '다른 탭', start: '2026-11-17' });
+      target.dispatchEvent(Object.assign(new Event('storage'), { key: STORAGE_KEY }));
+      expect(b.list().map((e) => e.title)).toEqual(['다른 탭']);
+      expect(calls).toBe(1);
+      // Another key, or nothing new in storage: nothing to tell.
+      target.dispatchEvent(Object.assign(new Event('storage'), { key: 'other' }));
+      target.dispatchEvent(Object.assign(new Event('storage'), { key: STORAGE_KEY }));
+      expect(calls).toBe(1);
+      stop();
+      a.add({ title: '또 다른', start: '2026-11-18' });
+      target.dispatchEvent(Object.assign(new Event('storage'), { key: STORAGE_KEY }));
+      expect(b.list()).toHaveLength(1);
+    });
+
+    test('another tab clearing storage empties the list instead of resurrecting old events', () => {
+      const { storage, a, b } = twoTabs();
+      a.add({ title: 'x', start: '2026-11-17' });
+      b.syncFromStorage();
+      storage.map.delete(STORAGE_KEY);
+      b.add({ title: 'y', start: '2026-11-18' });
+      expect(new EventStore(storage).list().map((e) => e.title)).toEqual(['y']);
+    });
+  });
+
   test('removes every event of a source', () => {
     const { store } = makeStore();
     store.commitImport([row('a', '2026-03-02')], { source: 'neis:G10/7430310', label: 's' });
