@@ -1,4 +1,4 @@
-import { isIsoDate, type IsoDate } from '../model/date';
+import { daysInMonth, isIsoDate, type IsoDate } from '../model/date';
 import type { RawEvent } from './classify';
 import { finalizeRows } from './finalize';
 import type { ImportResult, ImportWarning } from './types';
@@ -220,7 +220,7 @@ export async function fetchSchedule(
     ATPT_OFCDC_SC_CODE: school.officeCode,
     SD_SCHUL_CODE: school.schoolCode,
     AA_FROM_YMD: `${academicYear}0301`,
-    AA_TO_YMD: `${academicYear + 1}0228`,
+    AA_TO_YMD: `${academicYear + 1}02${String(daysInMonth(academicYear + 1, 2))}`,
     pSize: String(PAGE_SIZE),
   };
   const rows: Row[] = [];
@@ -250,7 +250,7 @@ export function scheduleResult(
         : `NEIS 인증키가 없어 일정 ${meta.total}건 중 ${rows.length}건만 받았습니다. 설정에서 인증키를 넣으면 모두 받을 수 있습니다.`,
     });
   }
-  const events = finalizeRows(scheduleRowsToEvents(rows), { merge: true });
+  const events = finalizeRows(scheduleRowsToEvents(rows), { merge: true, repairCutTitles: false });
   if (!events.length) {
     warnings.push({
       code: 'no-dates',

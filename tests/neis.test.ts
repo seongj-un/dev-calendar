@@ -4,6 +4,7 @@ import {
   NeisError,
   fetchSchedule,
   readEnvelope,
+  scheduleResult,
   scheduleRowsToEvents,
   searchSchools,
 } from '../src/import/neis';
@@ -162,5 +163,31 @@ describe('NEIS', () => {
         { AA_YMD: '20261009', EVENT_NM: '한글날', SBTR_DD_SC_NM: '공휴일' },
       ]),
     ).toEqual([{ title: '한글날', start: '2026-10-09', end: '2026-10-09', holiday: true }]);
+  });
+
+  test('keeps titles as NEIS sent them, even when one starts with another', () => {
+    const r = scheduleResult(
+      [
+        { AA_YMD: '20260701', EVENT_NM: '1학기 기말고사' },
+        { AA_YMD: '20260703', EVENT_NM: '1학기 기말고사 성적 확인' },
+        { AA_YMD: '20260706', EVENT_NM: '방학식. 여름방학 시작' },
+      ],
+      SCHOOL,
+      2026,
+      { total: 3, keyed: true },
+    );
+    expect(r.events.map((e) => [e.title, e.start, e.category])).toEqual([
+      ['1학기 기말고사', '2026-07-01', 'exam'],
+      ['1학기 기말고사 성적 확인', '2026-07-03', 'academic'],
+      ['방학식. 여름방학 시작', '2026-07-06', 'academic'],
+    ]);
+  });
+
+  test('asks for the last day of February in a leap year', async () => {
+    const { fn, calls } = fakeFetch({ SchoolSchedule: [{ head: [{ list_total_count: 0 }] }] });
+    await fetchSchedule(SCHOOL, 2027, { key: KEY, fetch: fn });
+    expect(calls[0]!.url.searchParams.get('AA_TO_YMD')).toBe('20280229');
+    await fetchSchedule(SCHOOL, 2026, { key: KEY, fetch: fn });
+    expect(calls[1]!.url.searchParams.get('AA_TO_YMD')).toBe('20270228');
   });
 });

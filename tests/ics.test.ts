@@ -61,4 +61,33 @@ describe('ICS', () => {
     expect(r.events).toEqual([]);
     expect(r.warnings.map((w) => w.code)).toEqual(['no-dates']);
   });
+
+  test('does not rename or split titles from a personal calendar', () => {
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'UID:a',
+      'DTSTART;VALUE=DATE:20260701',
+      'SUMMARY:1학기 기말고사',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'UID:b',
+      'DTSTART;VALUE=DATE:20260703',
+      'SUMMARY:1학기 기말고사 성적 확인',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'UID:c',
+      'DTSTART;VALUE=DATE:20260705',
+      'SUMMARY:캡스톤 회의. 장소 변경됨',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    const r = parseIcsText(ics, 'mine.ics', { timeZone: 'Asia/Seoul' });
+    expect(r.events.map((e) => [e.title, e.start])).toEqual([
+      ['1학기 기말고사', '2026-07-01'],
+      ['1학기 기말고사 성적 확인', '2026-07-03'],
+      ['캡스톤 회의. 장소 변경됨', '2026-07-05'],
+    ]);
+    expect(r.events[0]!.category).toBe('exam');
+  });
 });
