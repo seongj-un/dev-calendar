@@ -45,7 +45,7 @@ export function openSettingsDialog(root: HTMLElement, opts: SettingsOptions): { 
   let closed = false;
   let batchErr: string | null = null;
   /** Deletes the person can still undo; shown in the window because a toast behind it cannot be reached. */
-  let pending: { message: string; undo: () => void }[] = [];
+  const pending: { message: string; undo: () => void }[] = [];
   let undoNote: string | null = null;
 
   const finish = () => {
