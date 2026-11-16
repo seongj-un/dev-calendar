@@ -2,8 +2,8 @@ import { BackupFormatError, StoreWriteError, type EventStore } from '../../store
 import { eventsToIcs } from './ics';
 import { downloadText, exportFileName, FileTooLargeError, pickTextFile } from './files';
 
-/** Checked on the file's size before reading it; the store checks the text again. */
-const MAX_BACKUP_BYTES = 10_000_000;
+/** Checked on the file size before reading it: 10M characters at up to 3 bytes each (Korean). The store checks the text again. */
+const MAX_BACKUP_BYTES = 30_000_000;
 
 export type ExportFormat = 'ics' | 'json';
 

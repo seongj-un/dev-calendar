@@ -618,7 +618,7 @@ export class App {
           void this.copyLink();
           return true;
         case '/':
-          this.openPalette();
+          this.openPalette('', { search: true });
           return true;
         case '?':
           this.help.open();
@@ -973,8 +973,8 @@ export class App {
 
   // ---------- palette, export ----------
 
-  private openPalette(prefill = ''): void {
-    this.palette.open(prefill);
+  private openPalette(prefill = '', opts: { search?: boolean } = {}): void {
+    this.palette.open(prefill, opts);
   }
 
   private addDraft(draft: NewEventDraft): void {
