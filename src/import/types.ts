@@ -32,6 +32,7 @@ export type ImportWarningCode =
   | 'unsupported'
   | 'too-large'
   | 'read-failed'
+  | 'cancelled'
   | 'neis-sample-limit'
   | 'skipped-rows';
 
