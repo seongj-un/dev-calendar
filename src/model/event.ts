@@ -146,7 +146,18 @@ export function sanitizeInput(input: unknown): EventInput {
   return out;
 }
 
-/** Key used to spot the same event coming in twice (re-import, backup merge). */
-export function eventKey(e: { title: string; start: IsoDate; end: IsoDate }): string {
-  return `${e.start}|${e.end}|${e.title.replace(/\s+/g, ' ').trim().toLowerCase()}`;
+/**
+ * Key used to spot the same event coming in twice (re-import, backup merge).
+ * Grades are part of it, so the same field trip for grade 1 and grade 2 stays
+ * two events; an event without grades keeps the key it always had.
+ */
+export function eventKey(e: {
+  title: string;
+  start: IsoDate;
+  end: IsoDate;
+  grades?: readonly number[];
+}): string {
+  const base = `${e.start}|${e.end}|${e.title.replace(/\s+/g, ' ').trim().toLowerCase()}`;
+  if (!e.grades?.length) return base;
+  return `${base}|g${[...new Set(e.grades)].sort((a, b) => a - b).join(',')}`;
 }

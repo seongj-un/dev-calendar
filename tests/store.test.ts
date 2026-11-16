@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { EventValidationError } from '../src/model/event';
+import { EventValidationError, eventKey } from '../src/model/event';
 import type { ImportedEvent } from '../src/import/types';
 import {
   BackupFormatError,
@@ -134,6 +134,43 @@ describe('EventStore', () => {
     expect(store.removeBatch(first.batch.id)).toBe(2);
     expect(store.list().map((e) => e.title)).toEqual(['내 일정']);
     expect(store.batches()).toHaveLength(0);
+  });
+
+  test('keeps rows that differ only by grade, and old keys stay the same', () => {
+    const { store } = makeStore();
+    const rows = [
+      row('현장체험학습', '2026-05-20', '2026-05-20', { grades: [1] }),
+      row('현장체험학습', '2026-05-20', '2026-05-20', { grades: [2] }),
+      row('개교기념일', '2026-05-21'),
+    ];
+    const first = store.commitImport(rows, { source: 'file:a.pdf', label: 'a.pdf' });
+    expect(first.added.map((e) => e.grades)).toEqual([[1], [2], undefined]);
+    expect(first.skipped).toBe(0);
+    expect(eventKey({ title: '개교기념일', start: '2026-05-21', end: '2026-05-21' })).toBe(
+      '2026-05-21|2026-05-21|개교기념일',
+    );
+    expect(eventKey({ ...rows[1]!, grades: [2, 1] })).toBe(
+      eventKey({ ...rows[1]!, grades: [1, 2] }),
+    );
+    const again = store.commitImport(rows, { source: 'file:a.pdf', label: 'a.pdf' });
+    expect(again).toMatchObject({ added: [], skipped: 3 });
+  });
+
+  test('skips rows that fail validation and reports them instead of failing the import', () => {
+    const { store } = makeStore();
+    const rows = [
+      row('입학식 '.repeat(60), '2026-03-02'),
+      row('개학식', '2026-03-03'),
+      row('   ', '2026-03-04'),
+    ];
+    const r = store.commitImport(rows, { source: 'file:x.hwp', label: 'x.hwp' });
+    expect(r.added.map((e) => e.title)).toEqual(['개학식']);
+    expect(r.invalid).toEqual([
+      { index: 0, message: '제목은 200자까지 쓸 수 있습니다.' },
+      { index: 2, message: expect.any(String) },
+    ]);
+    expect(r.batch.count).toBe(1);
+    expect(store.list()).toHaveLength(1);
   });
 
   test('removes every event of a source', () => {

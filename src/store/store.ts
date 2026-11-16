@@ -65,6 +65,21 @@ export interface RestoreResult {
   invalid: number;
 }
 
+/** A preview row that did not pass validation; `index` is its place in the rows given. */
+export interface InvalidImportRow {
+  index: number;
+  message: string;
+}
+
+export interface ImportCommitResult {
+  batch: ImportBatch;
+  added: CalendarEvent[];
+  /** Already in the calendar (same title, dates and grades). */
+  skipped: number;
+  /** Rows left out because they failed validation; the others still go in. */
+  invalid: InvalidImportRow[];
+}
+
 type Listener = () => void;
 
 export function randomId(): string {
@@ -201,34 +216,28 @@ export class EventStore {
   commitImport(
     rows: readonly ImportedEvent[],
     meta: { source: string; label: string; tags?: readonly string[] },
-  ): { batch: ImportBatch; added: CalendarEvent[]; skipped: number } {
+  ): ImportCommitResult {
     const batchId = this.newId();
     const stamp = this.now().toISOString();
     const keys = this.existingKeys();
     const tags = normalizeTags(meta.tags ?? []);
     const added: CalendarEvent[] = [];
+    const invalid: InvalidImportRow[] = [];
     let skipped = 0;
-    for (const row of rows) {
-      const clean = sanitizeInput({
-        title: row.title,
-        start: row.start,
-        end: row.end,
-        allDay: row.allDay,
-        time: row.time,
-        endTime: row.endTime,
-        category: row.category,
-        grades: row.grades,
-        notice: row.notice,
-        tags,
-      });
-      const key = eventKey(clean);
+    for (const [index, row] of rows.entries()) {
+      const clean = cleanImportRow(row, tags);
+      if (!clean.ok) {
+        invalid.push({ index, message: clean.message });
+        continue;
+      }
+      const key = eventKey(clean.value);
       if (keys.has(key)) {
         skipped++;
         continue;
       }
       keys.add(key);
       added.push({
-        ...clean,
+        ...clean.value,
         id: this.newId(),
         source: meta.source.slice(0, 200),
         batchId,
@@ -249,7 +258,7 @@ export class EventStore {
       events: [...this.data.events, ...added],
       batches: added.length ? [...this.data.batches, batch] : this.data.batches,
     });
-    return { batch, added, skipped };
+    return { batch, added, skipped, invalid };
   }
 
   /** Deletes every event of an import batch, edited ones included. Returns how many. */
@@ -360,6 +369,32 @@ export class EventStore {
     }
     this.data = next;
     for (const fn of this.listeners) fn();
+  }
+}
+
+function cleanImportRow(
+  row: ImportedEvent,
+  tags: string[],
+): { ok: true; value: EventInput } | { ok: false; message: string } {
+  try {
+    return {
+      ok: true,
+      value: sanitizeInput({
+        title: row.title,
+        start: row.start,
+        end: row.end,
+        allDay: row.allDay,
+        time: row.time,
+        endTime: row.endTime,
+        category: row.category,
+        grades: row.grades,
+        notice: row.notice,
+        tags,
+      }),
+    };
+  } catch (err) {
+    if (err instanceof EventValidationError) return { ok: false, message: err.message };
+    throw err;
   }
 }
 
