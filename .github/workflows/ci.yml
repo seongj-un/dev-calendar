@@ -20,4 +20,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      # Date math must not depend on the runner's zone.
+      - run: npm test
+        env:
+          TZ: America/Los_Angeles
       - run: npm run build

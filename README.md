@@ -21,7 +21,7 @@ SheetJS는 npm 레지스트리 버전이 오래되어 cdn.sheetjs.com 배포판(
 - `src/model`: 일정 데이터 모델과 날짜 계산
 - `src/store`: localStorage 저장소, JSON 백업, 가져오기 묶음 삭제
 - `src/import`: 학사일정 가져오기 파서 (PDF, ICS, 엑셀, HWPX, HWP, 나이스). 가져오기를 열 때 동적 import로 불러옵니다.
-- `tests/fixtures`: 파서 테스트용 샘플 파일
+- `tests/fixtures`: 파서 테스트용 샘플 파일. 엑셀, 한글 샘플은 `node scripts/make-fixtures.mjs`로 다시 만들 수 있습니다. 나이스 응답은 open.neis.go.kr에서 받은 실제 응답(서울과학고등학교)입니다.
 
 ## 배포
 
