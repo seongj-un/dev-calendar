@@ -1,12 +1,11 @@
 import { StoreWriteError, type EventStore } from '../../store/store';
 import { loadNeis as defaultLoadNeis } from '../../import';
-import { isPlausibleKey } from '../../import/neis';
 import { h } from '../dom';
 import { icon } from '../icons';
 import type { Prefs, Theme } from '../prefs';
 import type { WeekStart } from '../layout';
 import { batchInfos, batchLine, type BatchInfo } from './batches';
-import { maskKey, type SavedSchool } from './neisPrefs';
+import { isKeyShape, maskKey, type SavedSchool } from './neisPrefs';
 
 export interface SettingsOptions {
   store: EventStore;
@@ -59,7 +58,7 @@ export function openSettingsDialog(root: HTMLElement, opts: SettingsOptions): { 
   // ---------- NEIS key ----------
   const checkKey = async (value: string) => {
     const key = value.trim();
-    if (!isPlausibleKey(key)) {
+    if (!isKeyShape(key)) {
       keyMsg = { kind: 'err', text: '인증키는 영문과 숫자 16~64자입니다. 다시 확인해 주세요.' };
       draw();
       focusFk('key-in');

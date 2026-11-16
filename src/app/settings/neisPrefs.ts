@@ -16,10 +16,15 @@ export interface SavedSchool {
   detail: string;
 }
 
+/** Same shape check as the NEIS client; kept here so settings does not load that chunk. */
+export function isKeyShape(key: string): boolean {
+  return /^[A-Za-z0-9]{16,64}$/.test(key);
+}
+
 export function loadNeisKey(storage: StorageLike): string {
   try {
     const key = storage.getItem(NEIS_KEY) ?? '';
-    return /^[A-Za-z0-9]{16,64}$/.test(key) ? key : '';
+    return isKeyShape(key) ? key : '';
   } catch {
     return '';
   }
