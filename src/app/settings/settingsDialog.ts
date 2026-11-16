@@ -51,9 +51,15 @@ export function openSettingsDialog(root: HTMLElement, opts: SettingsOptions): { 
   const finish = () => {
     if (closed) return;
     closed = true;
-    // Hand the last undo to the calendar's toast once the window is gone.
-    const last = pending.at(-1);
-    if (last) opts.onDeleted(last.message, last.undo);
+    // The toast holds one undo, so several pending deletes go over as one.
+    if (pending.length === 1) {
+      opts.onDeleted(pending[0]!.message, pending[0]!.undo);
+    } else if (pending.length > 1) {
+      const left = [...pending].reverse();
+      opts.onDeleted(`묶음 ${left.length}개를 지웠습니다.`, () => {
+        for (const entry of left) entry.undo();
+      });
+    }
     if (dialog.open) dialog.close();
     dialog.remove();
     opts.onClose();

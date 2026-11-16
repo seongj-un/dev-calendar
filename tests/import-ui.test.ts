@@ -354,6 +354,17 @@ describe('import window', () => {
     expect([saved.start, saved.end]).toEqual(['2027-02-26', '2027-02-28']);
   });
 
+  test('a source whose events were all deleted one by one is not offered for deletion again', async () => {
+    const { added } = store.commitImport([row('수학여행', '2026-05-11')], {
+      source: 'file:plan.pdf',
+      label: 'plan.pdf',
+    });
+    store.remove(added[0]!.id);
+    openImport();
+    await pickFile();
+    expect(all('.notice-line').some((n) => n.textContent?.includes('이미 가져온'))).toBe(false);
+  });
+
   test('opening and finishing an already-existing row does not check it', async () => {
     store.add({
       title: '개교기념일',
@@ -621,6 +632,28 @@ describe('settings window', () => {
     expect(calls.deleted).toHaveLength(1);
     calls.deleted[0]!.undo();
     expect(store.list()).toHaveLength(total);
+  });
+
+  test('two undos pending when the window closes go to the toast as one', async () => {
+    store.commitImport([row('가', '2026-03-03')], { source: 'file:a.pdf', label: 'a.pdf' });
+    store.commitImport([row('나', '2026-03-04')], { source: 'file:b.pdf', label: 'b.pdf' });
+    const calls = openSettings();
+    for (let i = 0; i < 2; i++) {
+      $('[data-fk^="del:"]').click();
+      $<HTMLButtonElement>('.batches li.confirm .btn-primary').click();
+    }
+    expect(store.list()).toHaveLength(0);
+    $('#settings .d-f .btn').click();
+    expect(calls.deleted).toHaveLength(1);
+    expect(calls.deleted[0]!.message).toBe('묶음 2개를 지웠습니다.');
+    calls.deleted[0]!.undo();
+    expect(
+      store
+        .list()
+        .map((e) => e.title)
+        .sort(),
+    ).toEqual(['가', '나']);
+    expect(store.batches()).toHaveLength(2);
   });
 
   test('undoing one delete does not bring back another batch', async () => {

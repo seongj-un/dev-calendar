@@ -5,6 +5,7 @@ import type { ImportResult } from '../../import/types';
 import type { NeisOptions } from '../../import/neis';
 import { h } from '../dom';
 import { icon } from '../icons';
+import { batchInfos } from '../settings/batches';
 import type { SavedSchool } from '../settings/neisPrefs';
 import { pickFileView } from './pickFile';
 import { pickNeisView } from './pickNeis';
@@ -114,10 +115,13 @@ export function openImportDialog(root: HTMLElement, opts: ImportDialogOptions): 
     ctx.existing = opts.store.existingKeys();
     const rows = buildRows(res.events, ctx);
     const year = rowsAcademicYear(res.events, res.academicYear);
-    const previous = opts.store.batches().filter((b) => b.source === res.source);
+    // Only batches that still have events in the calendar can be deleted in settings.
+    const previous = batchInfos(opts.store)
+      .map((i) => i.batch)
+      .filter((b) => b.source === res.source);
     const notices = res.warnings.map((w) => w.message);
     if (previous.length) {
-      const last = previous.at(-1)!;
+      const last = previous[0]!;
       notices.push(
         `이 출처에서 이미 가져온 일정이 있습니다(${last.importedAt.slice(0, 10)}, ${last.count}개). 같은 일정은 "이미 있음"으로 빼 두었습니다. 처음부터 다시 가져오려면 설정에서 이전 묶음을 지워 주세요.`,
       );
