@@ -50,7 +50,7 @@ interface Column {
   right: number;
 }
 
-interface DayMark {
+export interface DayMark {
   month: number;
   day: number;
   y: number;
@@ -102,7 +102,7 @@ function findColumns(
  * Picks the academic year whose calendar puts each day number on the weekday
  * printed in its row. Returns null when the page has no weekday column.
  */
-function yearFromWeekdays(days: DayMark[], around: number): number | null {
+export function yearFromWeekdays(days: DayMark[], around: number): number | null {
   const marked = days.filter((d) => d.weekday !== undefined);
   if (marked.length < 7) return null;
   let best: { year: number; hits: number } | null = null;
