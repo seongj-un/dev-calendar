@@ -195,6 +195,21 @@ export class EventStore {
   }
 
   /**
+   * Puts a removed event back as it was (same id, source, batch and times),
+   * for undo. Returns false when an event with that id is already there.
+   */
+  restore(event: CalendarEvent): boolean {
+    if (this.get(event.id)) return false;
+    const revived = reviveEvent(event, this.now().toISOString(), this.newId);
+    if (!revived || revived.id !== event.id) {
+      throw new EventValidationError('event', '일정을 되돌리지 못했습니다.');
+    }
+    this.ensureRoom(1);
+    this.commit({ ...this.data, events: [...this.data.events, revived] });
+    return true;
+  }
+
+  /**
    * Adds checked preview rows as one batch. Rows whose title and dates
    * already exist are skipped, so importing the same file twice adds nothing.
    */

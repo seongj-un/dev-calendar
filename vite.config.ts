@@ -35,6 +35,9 @@ export default defineConfig({
   plugins: [cspPlugin()],
   build: {
     target: 'es2022',
+    // Small font subsets would otherwise be inlined as data: URLs, which the
+    // CSP above (font-src 'self') blocks.
+    assetsInlineLimit: 0,
   },
   test: {
     environment: 'node',

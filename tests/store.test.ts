@@ -44,6 +44,32 @@ function row(title: string, start: string, end = start, extra: Partial<ImportedE
 }
 
 describe('EventStore', () => {
+  test('restores a removed event with its id, source and batch for undo', () => {
+    const { store } = makeStore();
+    const { added } = store.commitImport([row('2학기 기말고사', '2026-12-09', '2026-12-11')], {
+      source: 'file:plan.pdf',
+      label: 'plan.pdf',
+    });
+    const original = added[0]!;
+    store.remove(original.id);
+    expect(store.get(original.id)).toBeUndefined();
+
+    expect(store.restore(original)).toBe(true);
+    expect(store.get(original.id)).toEqual(original);
+    expect(store.batchEventCount(original.batchId!)).toBe(1);
+    // A second restore of the same event changes nothing.
+    expect(store.restore(original)).toBe(false);
+    expect(store.list()).toHaveLength(1);
+  });
+
+  test('refuses to restore an event that fails validation', () => {
+    const { store } = makeStore();
+    const e = store.add({ title: 'a', start: '2026-12-01' });
+    store.remove(e.id);
+    expect(() => store.restore({ ...e, start: 'nope' })).toThrow(EventValidationError);
+    expect(store.list()).toHaveLength(0);
+  });
+
   test('adds, updates and removes events and persists them', () => {
     const { store, storage } = makeStore();
     const e = store.add({
