@@ -24,21 +24,57 @@ export function unifyTruncated<T extends RawEvent>(rows: T[]): T[] {
   return rows;
 }
 
-/** True when every day strictly between `a` and `b` is a Saturday or Sunday. */
-function onlyWeekendBetween(a: string, b: string): boolean {
-  for (let d = addDays(a, 1); d < b; d = addDays(d, 1)) {
-    if (!isWeekend(d)) return false;
+export interface MergeOptions {
+  /**
+   * Also bridge days filled by another event. In a printed grid a cell often
+   * has room for one title, so a long break is not repeated on the day of a
+   * one-day event inside it.
+   */
+  bridgeOccupied?: boolean;
+}
+
+const isNotice = (title: string) => title.trim().startsWith('[');
+
+/** Titles present on each date (ranges expanded, notices left out). */
+function titlesByDate(rows: readonly RawEvent[]): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  for (const r of rows) {
+    if (isNotice(r.title)) continue;
+    const days = Math.min(diffDays(r.start, r.end), 366);
+    for (let i = 0, d = r.start; i <= days; i++, d = addDays(d, 1)) {
+      const set = map.get(d) ?? new Set<string>();
+      set.add(r.title);
+      map.set(d, set);
+    }
   }
-  return true;
+  return map;
 }
 
 /**
  * Joins rows with the same title (and grades) on consecutive days into one
- * range. A gap made only of a weekend still counts as consecutive, so a
- * Friday and the following Monday join. Bracketed notices ("[의무귀가]") are
- * repeated reminders and never join.
+ * range. Up to two days in between may be skipped when each of them is a
+ * weekend, a day off, or (with `bridgeOccupied`) a day another event fills.
+ * Bracketed notices ("[의무귀가]") are repeated reminders and never join.
  */
-export function mergeConsecutive<T extends RawEvent>(rows: readonly T[]): T[] {
+export function mergeConsecutive<T extends RawEvent>(
+  rows: readonly T[],
+  options: MergeOptions = {},
+): T[] {
+  const byDate = titlesByDate(rows);
+  const holidays = titlesByDate(rows.filter((r) => r.holiday));
+  const bridgeable = (day: string, title: string) => {
+    if (isWeekend(day) || holidays.has(day)) return true;
+    if (!options.bridgeOccupied) return false;
+    return [...(byDate.get(day) ?? [])].some((t) => t !== title);
+  };
+  const gapBridgeable = (from: string, to: string, title: string) => {
+    if (diffDays(from, to) > 3) return false;
+    for (let d = addDays(from, 1); d < to; d = addDays(d, 1)) {
+      if (!bridgeable(d, title)) return false;
+    }
+    return true;
+  };
+
   const keyOf = (r: T) =>
     `${r.title}\u0000${(r.grades ?? []).join(',')}\u0000${r.holiday ? 1 : 0}\u0000${r.time ?? ''}`;
   const sorted = [...rows].sort(
@@ -50,8 +86,8 @@ export function mergeConsecutive<T extends RawEvent>(rows: readonly T[]): T[] {
     const joins =
       prev !== undefined &&
       keyOf(prev) === keyOf(r) &&
-      !r.title.trim().startsWith('[') &&
-      (r.start <= addDays(prev.end, 1) || onlyWeekendBetween(prev.end, r.start));
+      !isNotice(r.title) &&
+      (r.start <= addDays(prev.end, 1) || gapBridgeable(prev.end, r.start, r.title));
     if (prev && joins) {
       prev.mergedDays = (prev.mergedDays ?? 1) + (r.mergedDays ?? 1);
       if (r.end > prev.end) prev.end = r.end;

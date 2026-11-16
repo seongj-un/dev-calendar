@@ -8,6 +8,8 @@ export interface FinalizeOptions {
   holidayByName?: boolean;
   /** Join same-title rows on consecutive days (sources that list each day). */
   merge?: boolean;
+  /** Let a range continue over days another event fills (printed grids). */
+  bridgeOccupied?: boolean;
 }
 
 /**
@@ -27,6 +29,9 @@ export function finalizeRows(
     }
   }
   const unified = unifyTruncated(split);
-  const merged = options.merge === false ? unified : mergeConsecutive(unified);
+  const merged =
+    options.merge === false
+      ? unified
+      : mergeConsecutive(unified, { bridgeOccupied: options.bridgeOccupied });
   return classify(merged, options.holidayByName ?? false);
 }
