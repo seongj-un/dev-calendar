@@ -1,7 +1,11 @@
 import { addDays, isIsoDate, localIsoDate, parseIso, ymd, type IsoDate } from '../model/date';
 import type { CalendarEvent } from '../model/event';
 import { EventStore, StoreWriteError, type StorageLike } from '../store/store';
-import { append, cssEscape, h, isShown, isTypingTarget } from './dom';
+import { exportEvents, importBackupFile } from './export/actions';
+import { HelpSheet } from './palette/help';
+import { Palette, type NewEventDraft } from './palette/palette';
+import type { PaletteCommand } from './palette/parse';
+import { append, cssEscape, h, isMac, isShown, isTypingTarget } from './dom';
 import { openEditor, type EditorOptions, type EventForm } from './editor';
 import { MONTH_EN, monthDayWeekday } from './format';
 import { icon } from './icons';
@@ -67,6 +71,8 @@ export class App {
   private readonly live: HTMLElement;
   private readonly dialog: HTMLDialogElement;
   private readonly toaster: Toaster;
+  private readonly palette: Palette;
+  private readonly help = new HelpSheet();
   private readonly themeBtn: HTMLButtonElement;
   private readonly quickInput: HTMLInputElement;
   private readonly media = window.matchMedia('(prefers-color-scheme: dark)');
@@ -91,6 +97,18 @@ export class App {
       h(
         'div',
         { class: 'top-r' },
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'icon-btn top-search',
+            'data-action': 'palette',
+            'aria-label': '검색과 명령 열기',
+            'aria-keyshortcuts': 'Control+K Meta+K',
+          },
+          icon('search'),
+          h('kbd', { 'aria-hidden': 'true' }, isMac() ? '⌘K' : 'Ctrl K'),
+        ),
         this.themeBtn,
         h(
           'button',
@@ -125,6 +143,17 @@ export class App {
       h('button', { type: 'submit', class: 'quick-btn', 'aria-label': '일정 추가' }, icon('plus')),
     );
     this.dialog = h('dialog', { class: 'dialog' });
+    this.palette = new Palette({
+      events: () => this.store.list(),
+      cursor: () => this.cursor,
+      addEvent: (draft) => this.addDraft(draft),
+      openEvent: (event) =>
+        this.moveTo(
+          event.start > this.cursor || event.end < this.cursor ? event.start : this.cursor,
+          { focus: true },
+        ),
+      run: (command) => this.runCommand(command),
+    });
     const toasts = h('div', { class: 'toasts', 'aria-live': 'polite' });
     this.toaster = new Toaster(toasts);
 
@@ -140,6 +169,8 @@ export class App {
       this.live,
       toasts,
       this.dialog,
+      this.palette.element,
+      this.help.element,
     );
 
     quick.addEventListener('submit', (e) => {
@@ -472,9 +503,18 @@ export class App {
   // ---------- keyboard ----------
 
   private onKey(e: KeyboardEvent): void {
-    if (this.editorOpen || e.defaultPrevented) return;
+    if (e.defaultPrevented) return;
     const typing = isTypingTarget(e.target);
     const mod = e.metaKey || e.ctrlKey;
+    // Cmd/Ctrl+K works from anywhere, even inside a field, except over the editor.
+    if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
+      if (this.editorOpen || this.help.isOpen) return;
+      e.preventDefault();
+      if (this.palette.isOpen) this.palette.close();
+      else this.openPalette();
+      return;
+    }
+    if (this.editorOpen || this.palette.isOpen || this.help.isOpen) return;
     if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
       if (!typing && this.toaster.runUndo()) e.preventDefault();
       return;
@@ -539,6 +579,23 @@ export class App {
         case 'Y':
           void this.copyLink();
           return true;
+        case '/':
+          this.openPalette();
+          return true;
+        case '?':
+          this.help.open();
+          return true;
+        case 'g':
+        case 'G':
+          this.openPalette('>goto ');
+          return true;
+        case 'i':
+        case 'I':
+          this.runCommand({ type: 'import' });
+          return true;
+        case ',':
+          this.runCommand({ type: 'settings' });
+          return true;
         case 'Escape':
           if (!this.filter) return false;
           this.setFilter(null);
@@ -590,6 +647,7 @@ export class App {
     if (action) {
       if (action === 'add') this.openAdd();
       else if (action === 'theme') this.toggleTheme();
+      else if (action === 'palette') this.openPalette();
       else if (action === 'prev') this.moveMonth(-1);
       else if (action === 'next') this.moveMonth(1);
       else if (action === 'today') this.moveTo(this.today, { announce: true });
@@ -791,6 +849,86 @@ export class App {
     } catch (err) {
       if (err instanceof StoreWriteError) this.toaster.show({ message: err.message });
       else this.openAdd(form);
+    }
+  }
+
+  // ---------- palette, export ----------
+
+  private openPalette(prefill = ''): void {
+    this.palette.open(prefill);
+  }
+
+  private addDraft(draft: NewEventDraft): void {
+    const form: Partial<EventForm> = {
+      title: draft.title,
+      start: draft.start,
+      end: draft.end,
+      allDay: !draft.time,
+      time: draft.time,
+      endTime: draft.endTime,
+      category: draft.category ?? 'other',
+      tags: draft.tags,
+    };
+    try {
+      const added = this.store.add(form);
+      this.cursor = added.start;
+      this.writeHash();
+      this.render();
+      this.focusCell();
+      this.toaster.show({
+        message: `일정을 추가했습니다: ${added.title}`,
+        undo: () => this.undoAdd(added.id),
+      });
+    } catch (err) {
+      if (err instanceof StoreWriteError) this.toaster.show({ message: err.message });
+      else this.openAdd(form);
+    }
+  }
+
+  private setPrefs(change: Partial<Prefs>): void {
+    this.prefs = { ...this.prefs, ...change };
+    savePrefs(this.deps.prefsStorage, this.prefs);
+    this.applyTheme();
+    this.render();
+  }
+
+  /**
+   * Runs a palette command. Import and settings belong to other screens: they
+   * are announced as a cancelable `datebook:command` event, and a listener
+   * that handles one calls `preventDefault()`.
+   */
+  private runCommand(command: PaletteCommand): void {
+    switch (command.type) {
+      case 'goto':
+        this.moveTo(command.date, { focus: true });
+        return;
+      case 'export':
+        this.toaster.show({ message: exportEvents(this.store, command.format, this.now()) });
+        return;
+      case 'import-json':
+        void importBackupFile(this.store).then((message) => {
+          if (message) this.toaster.show({ message });
+        });
+        return;
+      case 'theme':
+        this.setPrefs({ theme: command.theme });
+        this.say(`테마: ${{ dark: '다크', light: '라이트', system: '시스템' }[command.theme]}`);
+        return;
+      case 'weekstart':
+        this.setPrefs({ weekStart: command.weekStart });
+        return;
+      case 'copy-link':
+        void this.copyLink();
+        return;
+      case 'help':
+        this.help.open();
+        return;
+      default: {
+        const handled = !document.dispatchEvent(
+          new CustomEvent('datebook:command', { detail: command, cancelable: true }),
+        );
+        if (!handled) this.toaster.show({ message: '이 기능은 아직 연결되지 않았습니다.' });
+      }
     }
   }
 
