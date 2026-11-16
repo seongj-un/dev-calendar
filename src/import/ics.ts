@@ -189,7 +189,7 @@ export function parseIcsText(
       message: `날짜나 제목을 읽지 못한 일정 ${invalid}개는 뺐습니다.`,
     });
   }
-  const events = finalizeRows(rows, { holidayByName: true, merge: false });
+  const events = finalizeRows(rows, { holidayByName: true, merge: false, repairCutTitles: false });
   if (!events.length && !invalid) {
     warnings.push({ code: 'no-dates', message: '캘린더 파일에 일정이 없습니다.' });
   }

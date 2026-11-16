@@ -1,4 +1,5 @@
 import { resultFromBlocks, type DocBlock, type DocumentImportOptions } from './document';
+import { MAX_PART_BYTES, MAX_SECTIONS, MAX_TOTAL_BYTES, type InflateLimits } from './limits';
 import type { ImportResult } from './types';
 
 /**
@@ -8,13 +9,69 @@ import type { ImportResult } from './types';
  * position in <hp:cellAddr colAddr rowAddr>.
  */
 
-export const MAX_HWPX_PART_BYTES = 30 * 1024 * 1024;
+export const MAX_HWPX_PART_BYTES = MAX_PART_BYTES;
 
 /** The part of JSZip this module uses. */
 export interface JSZipLike {
   loadAsync(data: Uint8Array): Promise<{
     files: Record<string, { async(type: 'string'): Promise<string> }>;
   }>;
+}
+
+interface ZipStreamLike {
+  on(event: 'data', fn: (chunk: Uint8Array) => void): ZipStreamLike;
+  on(event: 'error', fn: (err: Error) => void): ZipStreamLike;
+  on(event: 'end', fn: () => void): ZipStreamLike;
+  pause(): ZipStreamLike;
+  resume(): ZipStreamLike;
+}
+
+interface ZipEntryLike {
+  internalStream(type: 'uint8array'): ZipStreamLike;
+}
+
+/**
+ * Inflates one zip entry while counting the bytes it really produces, and stops
+ * as soon as they pass `limit`. The size in the zip header is written by the
+ * file's author, so it only serves as a quick first check.
+ */
+function inflateEntry(entry: object, limit: number): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    let done = false;
+    // JSZip's typings leave internalStream out, but it is part of the 3.x API.
+    const stream = (entry as ZipEntryLike).internalStream('uint8array');
+    stream
+      .on('data', (chunk) => {
+        if (done) return;
+        size += chunk.length;
+        if (size > limit) {
+          done = true;
+          stream.pause();
+          reject(new Error('too-large'));
+          return;
+        }
+        chunks.push(chunk);
+      })
+      .on('error', (err) => {
+        if (done) return;
+        done = true;
+        reject(err);
+      })
+      .on('end', () => {
+        if (done) return;
+        done = true;
+        const out = new Uint8Array(size);
+        let at = 0;
+        for (const c of chunks) {
+          out.set(c, at);
+          at += c.length;
+        }
+        resolve(out);
+      })
+      .resume();
+  });
 }
 
 export async function loadJsZip(): Promise<JSZipLike> {
@@ -121,22 +178,29 @@ export function sectionBlocks(xml: string): DocBlock[] {
   return blocks;
 }
 
-export async function hwpxBlocks(data: Uint8Array, JSZip: JSZipLike): Promise<DocBlock[]> {
+export async function hwpxBlocks(
+  data: Uint8Array,
+  JSZip: JSZipLike,
+  limits: InflateLimits = {},
+): Promise<DocBlock[]> {
+  const maxPart = limits.maxPartBytes ?? MAX_PART_BYTES;
+  let budget = limits.maxTotalBytes ?? MAX_TOTAL_BYTES;
   const zip = await JSZip.loadAsync(data);
   const sections = Object.keys(zip.files)
     .map((name) => ({ name, n: /^Contents\/section(\d+)\.xml$/i.exec(name)?.[1] }))
     .filter((x): x is { name: string; n: string } => x.n !== undefined)
     .sort((a, b) => Number(a.n) - Number(b.n));
   if (!sections.length) throw new Error('not-hwpx');
+  if (sections.length > (limits.maxSections ?? MAX_SECTIONS)) throw new Error('too-large');
   const blocks: DocBlock[] = [];
   for (const { name } of sections) {
     const file = zip.files[name]!;
     const size = (file as unknown as { _data?: { uncompressedSize?: number } })._data
       ?.uncompressedSize;
-    if (typeof size === 'number' && size > MAX_HWPX_PART_BYTES) throw new Error('too-large');
-    const xml = await file.async('string');
-    if (xml.length > MAX_HWPX_PART_BYTES) throw new Error('too-large');
-    blocks.push(...sectionBlocks(xml));
+    if (typeof size === 'number' && size > Math.min(maxPart, budget)) throw new Error('too-large');
+    const bytes = await inflateEntry(file, Math.min(maxPart, budget));
+    budget -= bytes.length;
+    blocks.push(...sectionBlocks(new TextDecoder().decode(bytes)));
   }
   return blocks;
 }

@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import { detectFormat, importFile, markExisting, type FileLike } from '../src/import';
-import { eventKey } from '../src/model/event';
+import { classify } from '../src/import/classify';
+import { LIMITS, eventKey } from '../src/model/event';
 
 const fileFrom = (name: string, data: Uint8Array): FileLike => ({
   name,
@@ -67,5 +68,17 @@ describe('importFile', () => {
     const first = r.events[0]!;
     const marked = markExisting(r.events, new Set([eventKey(first)]));
     expect(marked.filter((e) => e.exists).map((e) => e.title)).toEqual([first.title]);
+  });
+
+  test('cuts an overlong title to the limit and flags the row for review', () => {
+    const long = '입학식 '.repeat(60).trim();
+    const [cut, ok] = classify([
+      { title: long, start: '2026-03-02', end: '2026-03-02' },
+      { title: '개학식', start: '2026-03-03', end: '2026-03-03' },
+    ]);
+    expect(cut!.title.length).toBeLessThanOrEqual(LIMITS.title);
+    expect(cut!.title.length).toBeGreaterThan(LIMITS.title - 4);
+    expect(cut!.review).toBe('제목이 길어 앞부분만 남겼습니다.');
+    expect(ok!.review).toBeUndefined();
   });
 });
