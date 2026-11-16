@@ -43,11 +43,16 @@ describe('ics export', () => {
       time: '09:00',
       endTime: '10:30',
     });
-    expect(whenLines(timed)).toEqual(['DTSTART:20261210T090000', 'DTEND:20261210T103000']);
-    expect(whenLines({ ...timed, endTime: undefined })).toEqual(['DTSTART:20261210T090000']);
+    expect(whenLines(timed)).toEqual([
+      'DTSTART;TZID=Asia/Seoul:20261210T090000',
+      'DTEND;TZID=Asia/Seoul:20261210T103000',
+    ]);
+    expect(whenLines({ ...timed, endTime: undefined })).toEqual([
+      'DTSTART;TZID=Asia/Seoul:20261210T090000',
+    ]);
     expect(whenLines({ ...timed, endTime: undefined, end: '2026-12-11' })).toEqual([
-      'DTSTART:20261210T090000',
-      'DTEND:20261212T000000',
+      'DTSTART;TZID=Asia/Seoul:20261210T090000',
+      'DTEND;TZID=Asia/Seoul:20261212T000000',
     ]);
   });
 
@@ -74,6 +79,33 @@ describe('ics export', () => {
     expect(text).toContain('DESCRIPTION:줄1\\n줄2');
     expect(text).toContain('TRANSP:TRANSPARENT');
     expect(text.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+  });
+
+  test('timed events carry TZID=Asia/Seoul and the file defines that zone', () => {
+    const timed = ev({ title: '회의', start: '2026-12-10', allDay: false, time: '09:00' });
+    const text = eventsToIcs([timed], { now: NOW });
+    expect(text).toContain('DTSTART;TZID=Asia/Seoul:20261210T090000');
+    expect(text).toContain('BEGIN:VTIMEZONE\r\nTZID:Asia/Seoul\r\n');
+    expect(text).toContain('TZOFFSETTO:+0900');
+    // The zone block comes before the first event; an all-day-only file has none.
+    expect(text.indexOf('BEGIN:VTIMEZONE')).toBeLessThan(text.indexOf('BEGIN:VEVENT'));
+    expect(
+      eventsToIcs([ev({ title: '쉬는 날', start: '2026-12-25' })], { now: NOW }),
+    ).not.toContain('VTIMEZONE');
+  });
+
+  test('a timed export keeps its wall time when read in another zone', () => {
+    const timed = ev({
+      id: 't1',
+      title: '회의',
+      start: '2026-12-10',
+      allDay: false,
+      time: '09:00',
+    });
+    const r = parseIcsText(eventsToIcs([timed], { now: NOW }), 'x.ics', {
+      timeZone: 'America/Los_Angeles',
+    });
+    expect(r.events.map((e) => [e.start, e.time])).toEqual([['2026-12-10', '09:00']]);
   });
 
   test('our own importer reads the export back', () => {
