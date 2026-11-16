@@ -68,7 +68,11 @@ let store: EventStore;
 beforeEach(() => {
   storage = new MemoryStorage();
   let n = 0;
-  store = new EventStore(storage, { newId: () => `id${++n}`, now: () => NOW });
+  let t = 0;
+  store = new EventStore(storage, {
+    newId: () => `id${++n}`,
+    now: () => new Date(NOW.getTime() + ++t * 1000),
+  });
   root = document.createElement('div');
   document.body.replaceChildren(root);
 });
@@ -480,12 +484,12 @@ describe('inside the app', () => {
     expect($<HTMLDialogElement>('#import').open).toBe(true);
     $('#import .icon-btn').click();
     expect(document.querySelector('#import')).toBeNull();
-    document.dispatchEvent(
+    document.body.dispatchEvent(
       new KeyboardEvent('keydown', { key: ',', bubbles: true, cancelable: true }),
     );
     expect(document.querySelector('#settings')).not.toBeNull();
     $('#settings .icon-btn').click();
-    document.dispatchEvent(
+    document.body.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'i', bubbles: true, cancelable: true }),
     );
     expect(document.querySelector('#import')).not.toBeNull();
@@ -495,7 +499,7 @@ describe('inside the app', () => {
     mount();
     $('[data-action=import]').click();
     const before = location.hash;
-    document.dispatchEvent(
+    document.body.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'j', bubbles: true, cancelable: true }),
     );
     expect(location.hash).toBe(before);
