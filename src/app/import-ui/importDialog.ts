@@ -157,10 +157,14 @@ export function openImportDialog(root: HTMLElement, opts: ImportDialogOptions): 
     busyLabel = file.name;
     pickError = null;
     render();
+    const mineAbort = new AbortController();
+    abort = mineAbort;
     let res: ImportResult;
     try {
-      res = await guarded(importFile(file, { today: opts.today }));
+      res = await guarded(importFile(file, { today: opts.today, signal: mineAbort.signal }));
     } catch (err) {
+      // A time-out leaves the parse running; tell it to stop at its next stage and drop its answer.
+      mineAbort.abort();
       if (mine !== token || closed) return;
       toPick(err instanceof Error ? err.message : '파일을 읽지 못했습니다.');
       return;

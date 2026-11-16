@@ -345,7 +345,8 @@ export function openEditor(dialog: HTMLDialogElement, opts: EditorOptions): void
     };
     if (!allDay.checked) {
       value.time = time.value;
-      if (endTime.value) value.endTime = endTime.value;
+      // Always set the key, even empty: `store.update` merges over the old event, so a missing key would keep the old end time.
+      value.endTime = endTime.value || undefined;
     }
     return value;
   };

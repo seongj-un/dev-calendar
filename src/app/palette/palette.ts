@@ -47,6 +47,8 @@ export function buildEntries(
   input: string,
   events: readonly CalendarEvent[],
   base: IsoDate,
+  /** Opened with `/`: matches lead, and a new event row (if any) follows them. */
+  searchFirst = false,
 ): Entry[] {
   const parsed = parsePaletteInput(input, base);
   const out: Entry[] = [];
@@ -78,18 +80,19 @@ export function buildEntries(
     }
     return out;
   }
+  const add: Entry[] = [];
   if (parsed.event) {
     const clash =
       sameSlot(events, { start: parsed.event.start, time: parsed.event.time }).length > 0;
-    out.push({ section: '새 일정' });
-    out.push({ row: { kind: 'new', draft: parsed.event, clash } });
+    add.push({ section: '새 일정' }, { row: { kind: 'new', draft: parsed.event, clash } });
   }
+  const search: Entry[] = [];
   const found = searchEvents(events, parsed.query);
   if (found.length) {
-    out.push({ section: '일정' });
-    for (const event of found) out.push({ row: { kind: 'event', event } });
+    search.push({ section: '일정' });
+    for (const event of found) search.push({ row: { kind: 'event', event } });
   }
-  return out;
+  return searchFirst ? [...search, ...add] : [...add, ...search];
 }
 
 function isRow(entry: Entry): entry is { row: Row } {
@@ -127,6 +130,7 @@ export class Palette {
   private rows: Row[] = [];
   private active = 0;
   private returnTo: HTMLElement | null = null;
+  private searchFirst = false;
 
   constructor(private readonly host: PaletteHost) {
     this.input = h('input', {
@@ -189,7 +193,8 @@ export class Palette {
     return this.element.open;
   }
 
-  open(prefill = ''): void {
+  open(prefill = '', opts: { search?: boolean } = {}): void {
+    this.searchFirst = opts.search === true;
     if (this.element.open) {
       this.input.value = prefill;
       this.active = 0;
@@ -218,7 +223,12 @@ export class Palette {
   }
 
   private refresh(): void {
-    this.entries = buildEntries(this.input.value, this.host.events(), this.host.cursor());
+    this.entries = buildEntries(
+      this.input.value,
+      this.host.events(),
+      this.host.cursor(),
+      this.searchFirst,
+    );
     this.rows = this.entries.filter(isRow).map((e) => e.row);
     if (this.active >= this.rows.length) this.active = Math.max(0, this.rows.length - 1);
     let index = 0;

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { detectFormat, importFile, markExisting, type FileLike } from '../src/import';
 import { classify } from '../src/import/classify';
 import { LIMITS, eventKey } from '../src/model/event';
@@ -40,6 +40,27 @@ describe('importFile', () => {
     expect(r.kind).toBe(kind);
     expect(r.source).toBe(`file:${name}`);
     expect(r.events).toHaveLength(count);
+  });
+
+  test('a cancelled import does not start reading or parsing', async () => {
+    const stop = new AbortController();
+    const pdf = fileFrom('a.pdf', new TextEncoder().encode('%PDF-1.4'));
+    const arrayBuffer = vi.fn(pdf.arrayBuffer.bind(pdf));
+    stop.abort();
+    const r = await importFile({ ...pdf, arrayBuffer }, { signal: stop.signal });
+    expect(r.events).toEqual([]);
+    expect(r.warnings[0]?.code).toBe('cancelled');
+    // Cancelled while the file was being read: the parser never starts.
+    const late = new AbortController();
+    const slow = {
+      ...pdf,
+      arrayBuffer: async () => {
+        const data = await pdf.arrayBuffer();
+        late.abort();
+        return data;
+      },
+    };
+    expect((await importFile(slow, { signal: late.signal })).warnings[0]?.code).toBe('cancelled');
   });
 
   test('refuses large, unknown and broken files without throwing', async () => {
