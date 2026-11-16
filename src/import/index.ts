@@ -16,6 +16,12 @@ export interface ImportFileOptions {
   /** Academic year for dates without a year (the preview can change it). */
   academicYear?: number;
   today?: Date;
+  /**
+   * Set when the person gave up. Parsers run on the main thread and cannot be
+   * stopped half way, so this only keeps a cancelled file from starting its
+   * next stage (reading, then parsing); the caller drops any answer.
+   */
+  signal?: AbortSignal;
 }
 
 export interface FileLike {
@@ -49,7 +55,7 @@ export function detectFormat(name: string, head: Uint8Array): Format | null {
 
 function failed(
   name: string,
-  code: 'unsupported' | 'too-large' | 'read-failed',
+  code: 'unsupported' | 'too-large' | 'read-failed' | 'cancelled',
   message: string,
 ): ImportResult {
   return {
@@ -76,19 +82,32 @@ export async function importFile(
   } catch {
     return failed(name, 'read-failed', '파일을 읽지 못했습니다.');
   }
+  const cancelled = () => failed(name, 'cancelled', '가져오기를 취소했습니다.');
+  if (options.signal?.aborted) return cancelled();
   const format = detectFormat(name, new Uint8Array(data.slice(0, 64)));
   try {
     switch (format) {
-      case 'pdf':
-        return await (await import('./pdf')).parsePdf(data, name, options);
-      case 'ics':
-        return (await import('./ics')).parseIcsText(new TextDecoder().decode(data), name);
-      case 'xlsx':
-        return await (await import('./xlsx')).parseXlsx(data, name, options);
-      case 'hwp':
-        return await (await import('./hwp')).parseHwp(data, name, options);
-      case 'hwpx':
-        return await (await import('./hwpx')).parseHwpx(data, name, options);
+      case 'pdf': {
+        const parser = await import('./pdf');
+        return options.signal?.aborted ? cancelled() : await parser.parsePdf(data, name, options);
+      }
+      case 'ics': {
+        const parser = await import('./ics');
+        if (options.signal?.aborted) return cancelled();
+        return parser.parseIcsText(new TextDecoder().decode(data), name);
+      }
+      case 'xlsx': {
+        const parser = await import('./xlsx');
+        return options.signal?.aborted ? cancelled() : await parser.parseXlsx(data, name, options);
+      }
+      case 'hwp': {
+        const parser = await import('./hwp');
+        return options.signal?.aborted ? cancelled() : await parser.parseHwp(data, name, options);
+      }
+      case 'hwpx': {
+        const parser = await import('./hwpx');
+        return options.signal?.aborted ? cancelled() : await parser.parseHwpx(data, name, options);
+      }
       default:
         return failed(
           name,

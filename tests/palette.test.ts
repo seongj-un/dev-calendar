@@ -175,9 +175,26 @@ describe('palette rows', () => {
     expect(kinds('')[0]).toBe('# 최근 일정');
   });
 
-  test('text shows the new event first, then matches', () => {
+  test('text with a date shows the new event first, then matches', () => {
     expect(kinds('배포 12/22')).toEqual(['# 새 일정', 'new']);
-    expect(kinds('배포')).toEqual(['# 새 일정', 'new', '# 일정', 'event']);
+    expect(kinds('배포 12/22 14:00')).toEqual(['# 새 일정', 'new']);
+    expect(kinds('배포 14:00')).toEqual(['# 새 일정', 'new']);
+  });
+
+  test('text with no date or time is only a search', () => {
+    expect(kinds('배포')).toEqual(['# 일정', 'event']);
+    expect(kinds('#')).toEqual([]);
+    expect(kinds('없는 단어')).toEqual([]);
+  });
+
+  test('opened with slash, matches lead and the new event follows', () => {
+    const kindsFirst = (input: string) =>
+      buildEntries(input, events, '2026-12-08', true).map((e) =>
+        'section' in e ? `# ${e.section}` : e.row.kind,
+      );
+    expect(kindsFirst('배포 14:00')).toEqual(['# 새 일정', 'new']);
+    expect(kindsFirst('회의 14:00')).toEqual(['# 새 일정', 'new']);
+    expect(kindsFirst('배포')).toEqual(['# 일정', 'event']);
   });
 
   test('warns when a new event lands on an occupied time', () => {

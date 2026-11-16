@@ -40,6 +40,22 @@ function dateValue(date: IsoDate): string {
   return date.replace(/-/g, '');
 }
 
+/** Wall times in the file are Korean Standard Time (no daylight saving). */
+export const TIME_ZONE = 'Asia/Seoul';
+
+/** The VTIMEZONE block that goes with `TZID=Asia/Seoul`. */
+const VTIMEZONE_SEOUL = [
+  'BEGIN:VTIMEZONE',
+  `TZID:${TIME_ZONE}`,
+  'BEGIN:STANDARD',
+  'DTSTART:19700101T000000',
+  'TZOFFSETFROM:+0900',
+  'TZOFFSETTO:+0900',
+  'TZNAME:KST',
+  'END:STANDARD',
+  'END:VTIMEZONE',
+];
+
 function dateTimeValue(date: IsoDate, time: string): string {
   return `${dateValue(date)}T${time.replace(':', '')}00`;
 }
@@ -54,7 +70,7 @@ function utcStamp(d: Date): string {
 /**
  * The DTSTART/DTEND lines of one event.
  * - All-day: DATE values; DTEND is the day after the last day (exclusive end).
- * - Timed: floating local times (the calendar keeps wall times, not zones).
+ * - Timed: wall times in Asia/Seoul (`TZID`, with a VTIMEZONE in the file).
  *   With an end time, DTEND is the last day at that time. Without one, a
  *   one-day event has no DTEND (an instant), and a multi-day event ends at
  *   the start of the day after its last day.
@@ -66,11 +82,11 @@ export function whenLines(e: CalendarEvent): string[] {
       `DTEND;VALUE=DATE:${dateValue(addDays(e.end, 1))}`,
     ];
   }
-  const lines = [`DTSTART:${dateTimeValue(e.start, e.time)}`];
+  const lines = [`DTSTART;TZID=${TIME_ZONE}:${dateTimeValue(e.start, e.time)}`];
   if (e.endTime && (e.end > e.start || e.endTime > e.time)) {
-    lines.push(`DTEND:${dateTimeValue(e.end, e.endTime)}`);
+    lines.push(`DTEND;TZID=${TIME_ZONE}:${dateTimeValue(e.end, e.endTime)}`);
   } else if (e.end > e.start) {
-    lines.push(`DTEND:${dateTimeValue(addDays(e.end, 1), '00:00')}`);
+    lines.push(`DTEND;TZID=${TIME_ZONE}:${dateTimeValue(addDays(e.end, 1), '00:00')}`);
   }
   return lines;
 }
@@ -91,6 +107,7 @@ export function eventsToIcs(events: readonly CalendarEvent[], options: IcsExport
     'CALSCALE:GREGORIAN',
     `X-WR-CALNAME:${escapeText(options.calendarName ?? 'datebook')}`,
   ];
+  if (events.some((e) => !e.allDay && e.time)) lines.push(...VTIMEZONE_SEOUL);
   for (const e of events) {
     lines.push(
       'BEGIN:VEVENT',

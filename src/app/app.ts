@@ -19,6 +19,7 @@ import {
   type KindKey,
 } from './layout';
 import { openImportDialog, type ImportDone, type ImportTab } from './import-ui/importDialog';
+import { shortcutKey } from './keys';
 import { parseLine } from './lineParse';
 import { renderGrid } from './month';
 import { effectiveTheme, loadPrefs, savePrefs, type Prefs } from './prefs';
@@ -241,8 +242,11 @@ export class App {
     this.timer = setInterval(tick, 60_000);
     document.addEventListener('visibilitychange', tick, { signal });
     const unsubscribe = this.store.subscribe(() => this.render());
+    // Another tab's change shows up here without waiting for a write in this tab.
+    const stopWatching = this.store.watchStorage(window);
     signal.addEventListener('abort', () => {
       unsubscribe();
+      stopWatching();
       clearInterval(this.timer);
       this.toaster.dismiss();
     });
@@ -529,10 +533,12 @@ export class App {
 
   private onKey(e: KeyboardEvent): void {
     if (e.defaultPrevented) return;
+    const pressed = shortcutKey(e);
+    if (pressed === null) return;
     const typing = isTypingTarget(e.target);
     const mod = e.metaKey || e.ctrlKey;
     // Cmd/Ctrl+K works from anywhere, even inside a field, except over the editor.
-    if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
+    if (mod && !e.altKey && !e.shiftKey && pressed.toLowerCase() === 'k') {
       if (this.editorOpen || this.help.isOpen) return;
       e.preventDefault();
       if (this.palette.isOpen) this.palette.close();
@@ -540,19 +546,19 @@ export class App {
       return;
     }
     if (this.editorOpen || this.palette.isOpen || this.help.isOpen) return;
-    if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
+    if (mod && !e.altKey && !e.shiftKey && pressed.toLowerCase() === 'z') {
       if (!typing && this.toaster.runUndo()) e.preventDefault();
       return;
     }
     if (typing || mod || e.altKey) return;
 
     if (this.evId) {
-      this.onEventModeKey(e);
+      this.onEventModeKey(e, pressed);
       return;
     }
     const target = e.target as HTMLElement;
     const onCalendar = target === document.body || target.classList.contains('cell');
-    const key = e.key;
+    const key = pressed;
     const handled = (() => {
       switch (key) {
         case 'h':
@@ -612,7 +618,7 @@ export class App {
           void this.copyLink();
           return true;
         case '/':
-          this.openPalette();
+          this.openPalette('', { search: true });
           return true;
         case '?':
           this.help.open();
@@ -632,9 +638,9 @@ export class App {
     if (handled) e.preventDefault();
   }
 
-  private onEventModeKey(e: KeyboardEvent): void {
+  private onEventModeKey(e: KeyboardEvent, key: string): void {
     const handled = (() => {
-      switch (e.key) {
+      switch (key) {
         case 'ArrowUp':
         case 'k':
         case 'K':
@@ -967,8 +973,8 @@ export class App {
 
   // ---------- palette, export ----------
 
-  private openPalette(prefill = ''): void {
-    this.palette.open(prefill);
+  private openPalette(prefill = '', opts: { search?: boolean } = {}): void {
+    this.palette.open(prefill, opts);
   }
 
   private addDraft(draft: NewEventDraft): void {

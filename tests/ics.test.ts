@@ -90,4 +90,15 @@ describe('ICS', () => {
     ]);
     expect(r.events[0]!.category).toBe('exam');
   });
+
+  test('keeps parenthesized numbers in titles and the day the file gives', () => {
+    const ics = (summary: string) =>
+      `BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20260410\r\nSUMMARY:${summary}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
+    for (const title of ['학부모 상담 (1-3)', '수행평가 (10-19)', '진로 주간 (12~15일)']) {
+      const r = parseIcsText(ics(title), 'x.ics', { timeZone: 'Asia/Seoul' });
+      expect(r.events.map((e) => [e.title, e.start, e.end])).toEqual([
+        [title, '2026-04-10', '2026-04-10'],
+      ]);
+    }
+  });
 });

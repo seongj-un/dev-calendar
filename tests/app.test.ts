@@ -2,7 +2,7 @@
 // @vitest-environment-options {"url": "http://localhost/#/2026-12-10"}
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from '../src/app/app';
-import { EventStore, type StorageLike } from '../src/store/store';
+import { EventStore, STORAGE_KEY, type StorageLike } from '../src/store/store';
 import type { EventInput } from '../src/model/event';
 
 class MemoryStorage implements StorageLike {
@@ -159,6 +159,19 @@ describe('month view', () => {
 });
 
 describe('event editor', () => {
+  test('clearing the end time in the editor removes it from the event', () => {
+    const { store } = setup([{ ...DS, endTime: '09:40' }]);
+    cell('2026-12-10').focus();
+    key('Enter');
+    key('e');
+    expect($<HTMLInputElement>('#ed-endtime').value).toBe('09:40');
+    $<HTMLInputElement>('#ed-endtime').value = '';
+    key('Enter', $('#ed-title'), { ctrlKey: true });
+    expect($<HTMLDialogElement>('dialog').open).toBe(false);
+    expect(store.list()[0]!.endTime).toBeUndefined();
+    expect(store.list()[0]!.time).toBe('08:50');
+  });
+
   test('adds an event from the one-line entry', () => {
     const { store } = setup();
     $<HTMLButtonElement>('.top [data-action="add"]').click();
@@ -354,5 +367,46 @@ describe('keyboard', () => {
     window.dispatchEvent(new HashChangeEvent('hashchange'));
     expect($('.num').textContent).toBe('3');
     expect(cell('2027-03-02').getAttribute('aria-selected')).toBe('true');
+  });
+});
+
+describe('shortcuts with a Korean input method', () => {
+  test('letters work from the physical key when key is a jamo', () => {
+    setup([DS]);
+    key('ㅓ', document.body, { code: 'KeyJ' });
+    expect(location.hash).toBe('#/2026-12-17');
+    key('ㅗ', document.body, { code: 'KeyH' });
+    expect(location.hash).toBe('#/2026-12-16');
+  });
+
+  test('keys are ignored while the input method is composing', () => {
+    setup([DS]);
+    key('j', document.body, { isComposing: true });
+    key('Process', document.body, { code: 'KeyJ' });
+    expect(location.hash).toBe('#/2026-12-10');
+  });
+
+  test('event mode reads the physical key too', () => {
+    setup([DS, ENG]);
+    cell('2026-12-10').focus();
+    key('Enter');
+    key('ㅓ', document.activeElement!, { code: 'KeyJ' });
+    expect(active().getAttribute('aria-label')).toBe('영어, 시험, 12월 10일 10:40');
+    key('ㄷ', document.activeElement!, { code: 'KeyE' });
+    expect($<HTMLDialogElement>('dialog').open).toBe(true);
+  });
+});
+
+describe('other tabs', () => {
+  test('a storage event from another tab redraws the calendar', () => {
+    const { store } = setup();
+    const other = new EventStore((store as unknown as { storage: StorageLike }).storage, {
+      newId: () => 'other-1',
+      now: () => NOW,
+    });
+    other.add({ title: '다른 탭 일정', start: '2026-12-10' });
+    expect(cell('2026-12-10').textContent).not.toContain('다른 탭 일정');
+    window.dispatchEvent(Object.assign(new Event('storage'), { key: STORAGE_KEY }));
+    expect(cell('2026-12-10').textContent).toContain('다른 탭 일정');
   });
 });

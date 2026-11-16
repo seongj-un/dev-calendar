@@ -432,6 +432,55 @@ describe('import window', () => {
     expect(all('.pv-group').map((g) => g.textContent)).toEqual(['3월 2건', '4월 1건']);
   });
 
+  test('a read given up on is told to stop, and its late answer is dropped', async () => {
+    vi.useFakeTimers();
+    try {
+      let signal: AbortSignal | undefined;
+      let finish: (r: ImportResult) => void = () => {};
+      openImport({
+        importFile: (_file, options) => {
+          signal = options?.signal;
+          return new Promise<ImportResult>((resolve) => (finish = resolve));
+        },
+        timeoutMs: 50,
+      });
+      const input = $<HTMLInputElement>('#import input[type=file]');
+      Object.defineProperty(input, 'files', {
+        value: [new File(['x'], 'a.pdf')],
+        configurable: true,
+      });
+      input.dispatchEvent(new Event('change'));
+      expect(signal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(signal?.aborted).toBe(true);
+      expect($('#import .form-err').textContent).toContain('오래 걸려');
+      finish(result([row('늦은 답', '2026-12-09')]));
+      await vi.advanceTimersByTimeAsync(10);
+      expect(document.querySelector('.preview')).toBeNull();
+      expect($('#import .form-err').textContent).toContain('오래 걸려');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('closing the window while a read runs tells the parser to stop', () => {
+    let signal: AbortSignal | undefined;
+    openImport({
+      importFile: (_file, options) => {
+        signal = options?.signal;
+        return new Promise<ImportResult>(() => {});
+      },
+    });
+    const input = $<HTMLInputElement>('#import input[type=file]');
+    Object.defineProperty(input, 'files', {
+      value: [new File(['x'], 'a.pdf')],
+      configurable: true,
+    });
+    input.dispatchEvent(new Event('change'));
+    $('#import').dispatchEvent(new Event('cancel', { cancelable: true }));
+    expect(signal?.aborted).toBe(true);
+  });
+
   test('the NEIS tab without a key offers the key button and opens settings', async () => {
     const { calls } = openImport({ tab: 'neis' });
     expect($('.notice-box').textContent).toContain('5건만');

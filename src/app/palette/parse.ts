@@ -138,14 +138,18 @@ export type PaletteInput =
     }
   | {
       kind: 'text';
-      /** A new event the text describes; null when it has no title left. */
+      /**
+       * A new event the text describes; null when it has no title left or names
+       * no date and no time (then it is only a search).
+       */
       event: (LineParse & { start: IsoDate; end: IsoDate }) | null;
       query: string;
     };
 
 /**
  * Reads the palette input. `>` starts a command; anything else is both a
- * search and a one-line event ("v1.2 배포 12/20 14:00 #release").
+ * search, and also a one-line event when it names a date or a time
+ * ("v1.2 배포 12/20 14:00 #release"). Text with neither is only a search.
  * `base` is the selected date: it fills a missing date and picks the year.
  */
 export function parsePaletteInput(input: string, base: IsoDate): PaletteInput {
@@ -156,7 +160,9 @@ export function parsePaletteInput(input: string, base: IsoDate): PaletteInput {
     return { kind: 'command', command: parseCommand(body), matches: matchCommands(body) };
   }
   const p = parseLine(text, base);
-  const event = p.title ? { ...p, start: p.start ?? base, end: p.end ?? p.start ?? base } : null;
+  const dated = p.start !== undefined || p.time !== undefined;
+  const event =
+    p.title && dated ? { ...p, start: p.start ?? base, end: p.end ?? p.start ?? base } : null;
   return { kind: 'text', event, query: text };
 }
 

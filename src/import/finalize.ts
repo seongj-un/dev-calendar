@@ -31,7 +31,8 @@ export function finalizeRows(
   for (const r of rows) {
     for (const title of repair ? splitJoinedTitles(r.title) : [r.title.trim()].filter(Boolean)) {
       const ev: RawEvent = { ...r, title };
-      applyRangeNote(ev);
+      // "(10일-19일)" notes are a printed-table habit; sources with exact dates keep their titles.
+      if (repair) applyRangeNote(ev);
       if (ev.title) split.push(ev);
     }
   }

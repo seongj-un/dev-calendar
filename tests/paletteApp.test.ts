@@ -98,6 +98,21 @@ describe('command palette', () => {
     expect(location.hash).toBe('#/2026-12-20');
   });
 
+  test('a search word and Enter goes to the match and adds nothing', () => {
+    const { store } = setup([{ title: '배포 회의', start: '2026-12-21' }]);
+    key('/', document.body);
+    type('배포');
+    key('Enter', input());
+    expect(store.list()).toHaveLength(1);
+    expect(location.hash).toBe('#/2026-12-21');
+    // No date and no time, and nothing found: still nothing is created.
+    key('/', document.body);
+    type('없는 단어');
+    expect(document.querySelectorAll('[role="option"]')).toHaveLength(0);
+    key('Enter', input());
+    expect(store.list()).toHaveLength(1);
+  });
+
   test('Enter during IME composition does nothing', () => {
     const { store } = setup();
     key('k', document.body, { ctrlKey: true });
@@ -115,7 +130,10 @@ describe('command palette', () => {
   });
 
   test('arrow keys move the active row and keep aria-activedescendant in step', () => {
-    setup([{ title: '배포 회의', start: '2026-12-21' }]);
+    setup([
+      { title: '배포 회의', start: '2026-12-21' },
+      { title: '배포 점검', start: '2026-12-23' },
+    ]);
     key('k', document.body, { ctrlKey: true });
     type('배포');
     const rows = [...document.querySelectorAll('[role="option"]')];
@@ -125,7 +143,7 @@ describe('command palette', () => {
     expect(rows[1]?.getAttribute('aria-selected')).toBe('true');
     expect(input().getAttribute('aria-activedescendant')).toBe(rows[1]?.id);
     key('Enter', input());
-    expect(location.hash).toBe('#/2026-12-21');
+    expect(location.hash).toBe('#/2026-12-23');
   });
 
   test('>goto moves to the month; a half-typed goto is completed, not run', () => {
@@ -221,7 +239,7 @@ describe('export', () => {
 
 describe('JSON backup import', () => {
   /** Makes the file picker answer with `content` (or nothing) without a real dialog. */
-  function pick(content: string | null) {
+  function pick(content: string | null, size?: number) {
     vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (
       this: HTMLInputElement,
     ) {
@@ -230,7 +248,7 @@ describe('JSON backup import', () => {
         return;
       }
       Object.defineProperty(this, 'files', {
-        value: [{ name: 'backup.json', text: () => Promise.resolve(content) }],
+        value: [{ name: 'backup.json', size, text: () => Promise.resolve(content) }],
       });
       this.dispatchEvent(new Event('change'));
     });
@@ -266,6 +284,22 @@ describe('JSON backup import', () => {
     expect(await importBackupFile(store)).toBe('JSON 파일이 아닙니다.');
     pick('{"app":"other","events":[]}');
     expect(await importBackupFile(store)).toBe('datebook 백업 파일이 아닙니다.');
+    expect(store.list()).toHaveLength(1);
+  });
+
+  test('refuses a backup over the size limit without reading it', async () => {
+    const { store } = setup([{ title: '배포', start: '2026-12-20' }]);
+    const read = vi.fn(() => Promise.resolve('{}'));
+    vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (
+      this: HTMLInputElement,
+    ) {
+      Object.defineProperty(this, 'files', {
+        value: [{ name: 'big.json', size: 30_000_001, text: read }],
+      });
+      this.dispatchEvent(new Event('change'));
+    });
+    expect(await importBackupFile(store)).toBe('백업 파일이 너무 큽니다.');
+    expect(read).not.toHaveBeenCalled();
     expect(store.list()).toHaveLength(1);
   });
 
