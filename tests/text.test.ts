@@ -83,6 +83,16 @@ describe('parseDateText', () => {
     ]);
   });
 
+  test('takes the first cell of a table row as the title and drops leftover numbers', () => {
+    expect(
+      simple([
+        '| 4. 20.(월) ~ 4. 24.(금) | 1학기 중간고사 | 오전만 수업',
+        '3 | 1 | 2 | 5월',
+        '3.9 학생상담주간 (~13일)',
+      ]),
+    ).toEqual(['2026-04-20 2026-04-24 1학기 중간고사', '2026-03-09 2026-03-13 학생상담주간']);
+  });
+
   test('ignores numbers that are not dates', () => {
     const r = parseDateText(
       ['3.1절 기념식', '수업일수 190일', '비율 1.5% 증가', '학사일정 안내'],

@@ -75,8 +75,8 @@ export function detectAcademicYear(text: string, today = new Date()): number {
   return academicYearOf(localIsoDate(today));
 }
 
-// "(10일-19일)" written after a title: the event runs over those days of its month.
-const RANGE_NOTE = /\(\s*(\d{1,2})\s*일?\s*[~-]\s*(\d{1,2})\s*일?\s*\)/;
+// "(10일-19일)" or "(~13일)" written after a title: the event runs over those days of its month.
+const RANGE_NOTE = /\(\s*(\d{1,2})?\s*일?\s*[~-]\s*(\d{1,2})\s*일?\s*\)/;
 
 /**
  * Applies a "(10일-19일)" note to an event that starts in that month. Returns
@@ -88,7 +88,7 @@ export function applyRangeNote(ev: { title: string; start: IsoDate; end: IsoDate
   if (!m) return false;
   const year = Number(ev.start.slice(0, 4));
   const month = Number(ev.start.slice(5, 7));
-  const from = ymd(year, month, Number(m[1]));
+  const from = m[1] ? ymd(year, month, Number(m[1])) : ev.start;
   let to = ymd(year, month, Number(m[2]));
   if (from && to && to < from) {
     to = month === 12 ? ymd(year + 1, 1, Number(m[2])) : ymd(year, month + 1, Number(m[2]));
@@ -161,6 +161,24 @@ function cleanTitle(text: string): string {
     .replace(/\s*\|\s*/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** Leftover cells such as "2", "5월" or "화" are not titles. */
+function isTitleLike(title: string): boolean {
+  return (
+    /[가-힣A-Za-z]/.test(title) &&
+    !/^\d{1,2}\s*월$/.test(title) &&
+    !new RegExp(`^\\(?${WD}(?:요일)?\\)?$`).test(title)
+  );
+}
+
+/** In a table row ("| 1학기 중간고사 | 오전만 수업") the title is the first filled cell; remarks follow. */
+function firstCell(text: string): string {
+  for (const part of text.split('|')) {
+    const t = cleanTitle(part);
+    if (t) return t;
+  }
+  return '';
 }
 
 export function parseDateText(
@@ -268,9 +286,9 @@ export function parseDateText(
         if (time[3]) ev.endTime = `${time[3].padStart(2, '0')}:${time[4]}`;
         title = title.slice(0, time.index) + title.slice(time.index + time[0].length);
       }
-      ev.title = cleanTitle(title);
-      if (ev.title) events.push(ev);
-      else pending = { start, end };
+      ev.title = firstCell(title);
+      if (!ev.title) pending = { start, end };
+      else if (isTitleLike(ev.title)) events.push(ev);
       i += used;
     }
     const first = events[firstOfLine];

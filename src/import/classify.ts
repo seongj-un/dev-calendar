@@ -25,7 +25,7 @@ const NOTICE = /^\[[^\]]+\]$/;
  * colors, and to question a "holiday" whose name looks like an ordinary event.
  */
 const HOLIDAY_NAME =
-  /공휴일|휴업일|휴교|휴일|연휴|쉬는\s?날|기념일|신정|새해|설날|추석|성탄|크리스마스|어린이날|현충일|광복절|개천절|한글날|제헌절|삼일절|3[.·]\s?1절|석가탄신일|부처님\s?오신\s?날|선거|근로자의\s?날|노동절/;
+  /공휴일|휴업일|휴교|휴일|연휴|쉬는\s?날|기념일|신정|새해|설날|설\s?연휴|추석|성탄|크리스마스|어린이날|현충일|광복절|개천절|한글날|제헌절|삼일절|3[.·]\s?1절|석가탄신일|부처님\s?오신\s?날|근로자의\s?날|노동절|선거일|지방\s?선거|대통령\s?선거|국회의원\s?선거/;
 
 export function splitGrades(rawTitle: string): { title: string; grades?: number[] } {
   const m = GRADE_SUFFIX.exec(rawTitle);
