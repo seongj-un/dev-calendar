@@ -1,5 +1,5 @@
 import { diffDays, type IsoDate } from '../model/date';
-import type { Category } from '../model/event';
+import { LIMITS, type Category } from '../model/event';
 import type { ImportedEvent } from './types';
 
 /** A parsed row before classification. */
@@ -56,7 +56,12 @@ export function looksLikeHoliday(title: string): boolean {
 export function classify(rows: readonly RawEvent[], holidayByName = false): ImportedEvent[] {
   const out = rows.map((r): ImportedEvent => {
     const rawTitle = r.title.trim();
-    const { title, grades } = splitGrades(rawTitle);
+    const split = splitGrades(rawTitle);
+    const { grades } = split;
+    // A date-pattern line can swallow a whole paragraph as its title; the store
+    // would refuse it, so cut it here where the preview can show it.
+    const tooLong = split.title.length > LIMITS.title;
+    const title = tooLong ? split.title.slice(0, LIMITS.title).trimEnd() : split.title;
     const notice = isNoticeTitle(title);
     const holiday = Boolean(r.holiday) || (holidayByName && !notice && looksLikeHoliday(title));
     let category: Category;
@@ -79,6 +84,7 @@ export function classify(rows: readonly RawEvent[], holidayByName = false): Impo
     if (g?.length) ev.grades = g;
     if (notice) ev.notice = true;
     if (r.mergedDays && r.mergedDays > 1) ev.mergedDays = r.mergedDays;
+    if (tooLong) ev.review = '제목이 길어 앞부분만 남겼습니다.';
     return ev;
   });
   flagForReview(out);
