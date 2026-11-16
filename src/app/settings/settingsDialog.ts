@@ -69,7 +69,7 @@ export function openSettingsDialog(root: HTMLElement, opts: SettingsOptions): { 
     keyMsg = { kind: 'note', text: '확인하는 중입니다…' };
     draw();
     const timeout = opts.timeoutMs ?? 15_000;
-    let result: 'ok' | 'invalid' | 'unknown' = 'unknown';
+    let result: 'ok' | 'invalid' | 'unknown';
     try {
       const neis = await load();
       const ctl = new AbortController();
@@ -258,7 +258,7 @@ export function openSettingsDialog(root: HTMLElement, opts: SettingsOptions): { 
   // ---------- batches ----------
   const deleteBatch = (info: BatchInfo) => {
     const snapshot = opts.store.exportBackup();
-    let removed = 0;
+    let removed: number;
     try {
       removed = opts.store.removeBatch(info.batch.id);
     } catch (err) {
@@ -277,8 +277,9 @@ export function openSettingsDialog(root: HTMLElement, opts: SettingsOptions): { 
       // The backup holds every event and batch as they were; merging it puts back the missing ones.
       opts.store.restoreBackup(snapshot, 'merge');
     });
-    (dialog.querySelector('[data-fk^="del:"]') as HTMLElement | null)?.focus() ??
-      focusFk('batches-h');
+    const next = dialog.querySelector<HTMLElement>('[data-fk^="del:"]');
+    if (next) next.focus();
+    else focusFk('batches-h');
   };
 
   const batchRow = (info: BatchInfo): HTMLElement => {

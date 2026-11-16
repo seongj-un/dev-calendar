@@ -35,7 +35,6 @@ export function pickNeisView(props: PickNeisProps): HTMLElement {
   };
   let total = 0;
   let controller: AbortController | null = null;
-  let timer: ReturnType<typeof setTimeout> | null = null;
 
   const thisYear = academicYearOf(localIsoDate(props.today));
   const years = [thisYear + 1, thisYear, thisYear - 1, thisYear - 2];
@@ -127,7 +126,6 @@ export function pickNeisView(props: PickNeisProps): HTMLElement {
   const runSearch = async () => {
     const q = query.value.trim();
     controller?.abort();
-    if (timer) clearTimeout(timer);
     if (q.length < 2) {
       status = { kind: 'idle', text: '' };
       drawResults();
