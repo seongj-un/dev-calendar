@@ -276,6 +276,7 @@ code,
   border-left: 1px solid var(--line);
   padding: 30px 28px 24px;
   overflow: auto;
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
   gap: 28px;
