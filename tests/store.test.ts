@@ -208,7 +208,7 @@ describe('EventStore', () => {
       expect(titles).toEqual(['x2']);
     });
 
-    test('a tab that did not write sees the other tab's data after syncing', () => {
+    test('a tab that did not write sees the other data after syncing', () => {
       const { a, b } = twoTabs();
       a.add({ title: '1', start: '2026-11-17' });
       b.add({ title: '2', start: '2026-11-17' });
