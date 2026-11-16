@@ -1,0 +1,228 @@
+/* Command palette and shortcut sheet. Tokens come from app.css. */
+
+.palette {
+  margin: 12vh auto auto;
+  width: 640px;
+  max-width: calc(100vw - 16px);
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+.palette[open] {
+  display: flex;
+  flex-direction: column;
+}
+.palette::backdrop,
+.help-sheet::backdrop {
+  background: var(--backdrop);
+}
+.p-in {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 58px;
+  padding: 0 8px 0 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--mute);
+}
+.p-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: none;
+  font-family: var(--f-kr);
+  font-size: 16.5px;
+  color: var(--ink);
+}
+.p-input::placeholder {
+  color: var(--mute);
+}
+.p-in:focus-within {
+  box-shadow: inset 0 -2px 0 var(--ink);
+}
+.p-close {
+  display: none;
+}
+.p-list {
+  padding: 8px;
+  max-height: min(420px, 60vh);
+  overflow: auto;
+}
+.p-sec {
+  font-family: var(--f-kr);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mute);
+  padding: 10px 12px 6px;
+}
+.p-empty {
+  font-family: var(--f-kr);
+  font-size: 13.5px;
+  color: var(--mute);
+  padding: 18px 12px;
+}
+.opt {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.opt.on {
+  background: var(--tint);
+}
+.opt .oi {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  background: var(--bg);
+  font-family: var(--f-mono);
+  font-size: 13px;
+}
+.opt .oi .ic {
+  width: 15px;
+  height: 15px;
+}
+.opt .ob {
+  min-width: 0;
+}
+.opt .ot {
+  font-family: var(--f-kr);
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.opt .od {
+  font-family: var(--f-kr);
+  font-size: 12.5px;
+  color: var(--mute);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: center;
+  margin-top: 1px;
+}
+.opt .od .tok {
+  color: var(--ink-2);
+}
+.opt code {
+  font-size: 13px;
+  font-weight: 500;
+}
+.opt .hint {
+  font-family: var(--f-kr);
+  font-size: 12.5px;
+  color: var(--mute);
+  white-space: nowrap;
+}
+.p-foot {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  font-family: var(--f-kr);
+  font-size: 12px;
+  color: var(--mute);
+}
+.p-foot kbd {
+  margin-right: 4px;
+}
+.p-foot-r {
+  margin-left: auto;
+}
+
+/* shortcut sheet */
+.help-sheet {
+  width: 720px;
+}
+.help-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px 40px;
+  overflow: auto;
+}
+.help-g h3 {
+  font-family: var(--f-kr);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--mute);
+  padding-bottom: 8px;
+  border-bottom: 1.5px solid var(--ink);
+  margin-bottom: 4px;
+}
+.help-g dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+.help-g dt,
+.help-g dd {
+  font-family: var(--f-kr);
+  font-size: 13.5px;
+}
+.help-g dd {
+  color: var(--mute);
+  display: flex;
+  gap: 3px;
+}
+.help-cmds dd {
+  font-size: 12.5px;
+}
+
+.top-search {
+  gap: 8px;
+  width: auto;
+  padding: 0 10px;
+  color: var(--mute);
+}
+
+@media (max-width: 720px) {
+  .palette {
+    margin: 12px 8px auto;
+    width: calc(100% - 16px);
+  }
+  .p-close {
+    display: inline-grid;
+    width: 44px;
+    height: 44px;
+  }
+  .p-foot {
+    display: none;
+  }
+  .opt .hint {
+    display: none;
+  }
+  .help-sheet {
+    width: 100%;
+  }
+  .help-grid {
+    grid-template-columns: 1fr;
+  }
+  .top-search {
+    width: 44px;
+    padding: 0;
+  }
+  .top-search .top-search-label {
+    display: none;
+  }
+}

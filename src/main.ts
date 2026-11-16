@@ -2,6 +2,7 @@ import '@fontsource-variable/archivo/wdth.css';
 import '@fontsource-variable/jetbrains-mono/index.css';
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 import './styles/app.css';
+import './styles/palette.css';
 import { App } from './app/app';
 import { EventStore, type StorageLike } from './store/store';
 
