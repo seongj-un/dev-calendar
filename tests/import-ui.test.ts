@@ -322,6 +322,38 @@ describe('import window', () => {
     expect([saved.start, saved.end]).toEqual(['2027-01-12', '2027-01-13']);
   });
 
+  test('a row added by hand follows the last row, not the first, in a file without a year', async () => {
+    openImport({
+      importFile: async () =>
+        result([row('예비소집', '2026-02-20'), row('체육대회', '2026-05-15')], {
+          academicYear: undefined,
+        }),
+    });
+    await pickFile();
+    $('[data-fk=add-row]').click();
+    expect($<HTMLInputElement>('.pv-row.editing [data-fk^="ed-start"]').value).toBe('5.15');
+    $<HTMLInputElement>('.pv-row.editing [data-fk^="ed-title"]').value = '학부모 상담';
+    $<HTMLButtonElement>('.pv-row.editing .btn-primary').click();
+    $('[data-fk=confirm]').click();
+    const saved = store.list().find((e) => e.title === '학부모 상담');
+    expect([saved?.start, saved?.end]).toEqual(['2026-05-15', '2026-05-15']);
+  });
+
+  test('shortening a range that ends in the next academic year reads the end after the start', async () => {
+    openImport({
+      importFile: async () =>
+        result([row('학년말 방학', '2027-02-26', { end: '2027-03-01' })], { academicYear: 2026 }),
+    });
+    await pickFile();
+    all('.pv-row .c-edit button')[0]!.click();
+    const [, end] = Array.from($('.pv-row.editing').querySelectorAll<HTMLInputElement>('.in-date'));
+    end!.value = '2.28';
+    $<HTMLButtonElement>('.pv-row.editing .btn-primary').click();
+    $('[data-fk=confirm]').click();
+    const saved = store.list()[0]!;
+    expect([saved.start, saved.end]).toEqual(['2027-02-26', '2027-02-28']);
+  });
+
   test('opening and finishing an already-existing row does not check it', async () => {
     store.add({
       title: '개교기념일',
