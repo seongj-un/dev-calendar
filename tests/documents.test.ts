@@ -2,11 +2,13 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import * as XLSX from 'xlsx';
 import CFB from 'cfb';
+import { deflateRawSync } from 'node:zlib';
 import JSZip from 'jszip';
 import { eventsFromTable, guessMapping, parseXlsx, type Cell } from '../src/import/xlsx';
 import { blocksToLines, cellEvents, readWeeklyTables, type DocBlock } from '../src/import/document';
-import { parseHwpx, sectionBlocks } from '../src/import/hwpx';
-import { paraText, parseHwp, readRecords } from '../src/import/hwp';
+import { MAX_TOTAL_BYTES, MAX_SECTIONS } from '../src/import/limits';
+import { hwpxBlocks, parseHwpx, sectionBlocks, type JSZipLike } from '../src/import/hwpx';
+import { hwpBlocks, paraText, parseHwp, readRecords } from '../src/import/hwp';
 import type { ImportedEvent } from '../src/import/types';
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url));
@@ -257,5 +259,72 @@ describe('HWP 5.0', () => {
     expect(enc.warnings[0]?.message).toMatch(/암호/);
     const dist = await parseHwp(make(0b101), 'dist.hwp', { cfb: CFB });
     expect(dist.warnings[0]?.message).toMatch(/배포용/);
+  });
+});
+
+describe('decompression budget', () => {
+  const MB = 1024 * 1024;
+  const xml = (bytes: number) => `<hs:sec>${' '.repeat(bytes)}</hs:sec>`;
+  const makeHwpx = async (sizes: number[]) => {
+    const zip = new JSZip();
+    sizes.forEach((n, i) => zip.file(`Contents/section${i}.xml`, xml(n)));
+    return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+  };
+  const makeHwp = (sizes: number[]) => {
+    const head = new Uint8Array(256);
+    head.set(new TextEncoder().encode('HWP Document File'));
+    new DataView(head.buffer).setUint32(32, 0x05000300, true);
+    new DataView(head.buffer).setUint32(36, 1, true);
+    const c = CFB.utils.cfb_new();
+    CFB.utils.cfb_add(c, '/FileHeader', head);
+    sizes.forEach((n, i) =>
+      CFB.utils.cfb_add(c, `/BodyText/Section${i}`, deflateRawSync(new Uint8Array(n))),
+    );
+    return CFB.write(c, { type: 'array' }) as unknown as Uint8Array;
+  };
+
+  test('the default budget is 50MB over at most 200 sections', () => {
+    expect(MAX_TOTAL_BYTES).toBe(50 * MB);
+    expect(MAX_SECTIONS).toBe(200);
+  });
+
+  test('HWPX: sections that are each small but too big together are refused', async () => {
+    const data = await makeHwpx([MB, MB, MB, MB]);
+    await expect(hwpxBlocks(data, JSZip, { maxTotalBytes: 3 * MB })).rejects.toThrow('too-large');
+    await expect(hwpxBlocks(data, JSZip, { maxTotalBytes: 5 * MB })).resolves.toEqual([]);
+  });
+
+  test('HWPX: a size written smaller in the zip header does not get past the limit', async () => {
+    const data = await makeHwpx([5 * MB]);
+    const liar: JSZipLike = {
+      async loadAsync(d) {
+        const zip = await JSZip.loadAsync(d);
+        for (const f of Object.values(zip.files)) {
+          (f as unknown as { _data: { uncompressedSize: number } })._data.uncompressedSize = 10;
+        }
+        return zip as unknown as Awaited<ReturnType<JSZipLike['loadAsync']>>;
+      },
+    };
+    await expect(hwpxBlocks(data, liar, { maxPartBytes: MB })).rejects.toThrow('too-large');
+  });
+
+  test('HWPX: too many sections are refused', async () => {
+    const data = await makeHwpx([10, 10, 10]);
+    await expect(hwpxBlocks(data, JSZip, { maxSections: 2 })).rejects.toThrow('too-large');
+  });
+
+  test('HWP: the total over all sections is limited', async () => {
+    const data = makeHwp([600_000, 600_000, 600_000]);
+    await expect(hwpBlocks(data, CFB, { maxTotalBytes: 1 * MB })).rejects.toMatchObject({
+      code: 'too-large',
+    });
+    await expect(hwpBlocks(data, CFB, { maxTotalBytes: 2 * MB })).resolves.toEqual([]);
+  });
+
+  test('HWP: too many sections are refused', async () => {
+    const data = makeHwp([8, 8, 8]);
+    await expect(hwpBlocks(data, CFB, { maxSections: 2 })).rejects.toMatchObject({
+      code: 'too-large',
+    });
   });
 });

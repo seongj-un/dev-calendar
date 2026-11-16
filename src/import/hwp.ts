@@ -1,3 +1,4 @@
+import { MAX_PART_BYTES, MAX_SECTIONS, MAX_TOTAL_BYTES, type InflateLimits } from './limits';
 import { resultFromBlocks, type DocBlock, type DocumentImportOptions } from './document';
 import type { ImportResult } from './types';
 
@@ -13,7 +14,7 @@ import type { ImportResult } from './types';
 
 type Cfb = typeof import('cfb');
 
-export const MAX_HWP_SECTION_BYTES = 30 * 1024 * 1024;
+export const MAX_HWP_SECTION_BYTES = MAX_PART_BYTES;
 
 const TAG_BEGIN = 0x10;
 const TAG_PARA_TEXT = TAG_BEGIN + 51;
@@ -196,7 +197,13 @@ export function sectionBlocks(records: readonly HwpRecord[]): DocBlock[] {
   return blocks;
 }
 
-export async function hwpBlocks(data: Uint8Array, CFB: Cfb): Promise<DocBlock[]> {
+export async function hwpBlocks(
+  data: Uint8Array,
+  CFB: Cfb,
+  limits: InflateLimits = {},
+): Promise<DocBlock[]> {
+  const maxPart = limits.maxPartBytes ?? MAX_PART_BYTES;
+  let budget = limits.maxTotalBytes ?? MAX_TOTAL_BYTES;
   let container: ReturnType<Cfb['read']>;
   try {
     container = CFB.read(data, { type: 'array' });
@@ -222,13 +229,16 @@ export async function hwpBlocks(data: Uint8Array, CFB: Cfb): Promise<DocBlock[]>
   }))
     .filter((x): x is { i: number; n: string } => x.n !== undefined)
     .sort((a, b) => Number(a.n) - Number(b.n));
+  if (sections.length > (limits.maxSections ?? MAX_SECTIONS)) throw new HwpReadError('too-large');
   const blocks: DocBlock[] = [];
   for (const { i } of sections) {
     const content = container.FileIndex[i]?.content;
     if (!content) continue;
     const raw = Uint8Array.from(content as ArrayLike<number>);
-    if (raw.length > MAX_HWP_SECTION_BYTES) throw new HwpReadError('too-large');
-    const bytes = compressed ? await inflateRaw(raw) : raw;
+    const room = Math.min(maxPart, budget);
+    if (raw.length > room) throw new HwpReadError('too-large');
+    const bytes = compressed ? await inflateRaw(raw, room) : raw;
+    budget -= bytes.length;
     blocks.push(...sectionBlocks(readRecords(bytes)));
   }
   return blocks;
