@@ -234,6 +234,16 @@ describe('EventStore', () => {
       expect(titles).toEqual(['x2']);
     });
 
+    test('undo restore keeps what the other tab saved in between', () => {
+      const { storage, a, b } = twoTabs();
+      const a1 = a.add({ title: 'A1', start: '2026-11-17' });
+      a.remove(a1.id);
+      b.add({ title: 'B1', start: '2026-11-18' });
+      expect(a.restore(a1)).toBe(true);
+      const titles = new EventStore(storage).list().map((e) => e.title);
+      expect(titles.sort()).toEqual(['A1', 'B1']);
+    });
+
     test('a tab that did not write sees the other data after syncing', () => {
       const { a, b } = twoTabs();
       a.add({ title: '1', start: '2026-11-17' });

@@ -251,6 +251,7 @@ export class EventStore {
    * for undo. Returns false when an event with that id is already there.
    */
   restore(event: CalendarEvent): boolean {
+    this.syncFromStorage();
     if (this.get(event.id)) return false;
     const revived = reviveEvent(event, this.now().toISOString(), this.newId);
     if (!revived || revived.id !== event.id) {
