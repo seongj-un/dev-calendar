@@ -1,0 +1,121 @@
+{
+ "SchoolSchedule": [
+  {
+   "head": [
+    {
+     "list_total_count": 247
+    },
+    {
+     "RESULT": {
+      "CODE": "INFO-000",
+      "MESSAGE": "정상 처리되었습니다."
+     }
+    }
+   ]
+  },
+  {
+   "row": [
+    {
+     "ATPT_OFCDC_SC_CODE": "B10",
+     "SD_SCHUL_CODE": "7010084",
+     "AY": "2026",
+     "AA_YMD": "20260301",
+     "ATPT_OFCDC_SC_NM": "서울특별시교육청",
+     "SCHUL_NM": "서울과학고등학교",
+     "DGHT_CRSE_SC_NM": "주간",
+     "SCHUL_CRSE_SC_NM": "고등학교",
+     "EVENT_NM": "3·1절",
+     "EVENT_CNTNT": "",
+     "ONE_GRADE_EVENT_YN": "Y",
+     "TW_GRADE_EVENT_YN": "Y",
+     "THREE_GRADE_EVENT_YN": "Y",
+     "FR_GRADE_EVENT_YN": "*",
+     "FIV_GRADE_EVENT_YN": "*",
+     "SIX_GRADE_EVENT_YN": "*",
+     "SBTR_DD_SC_NM": "공휴일",
+     "LOAD_DTM": "20261116"
+    },
+    {
+     "ATPT_OFCDC_SC_CODE": "B10",
+     "SD_SCHUL_CODE": "7010084",
+     "AY": "2026",
+     "AA_YMD": "20260302",
+     "ATPT_OFCDC_SC_NM": "서울특별시교육청",
+     "SCHUL_NM": "서울과학고등학교",
+     "DGHT_CRSE_SC_NM": "주간",
+     "SCHUL_CRSE_SC_NM": "고등학교",
+     "EVENT_NM": "대체휴일",
+     "EVENT_CNTNT": "",
+     "ONE_GRADE_EVENT_YN": "Y",
+     "TW_GRADE_EVENT_YN": "Y",
+     "THREE_GRADE_EVENT_YN": "Y",
+     "FR_GRADE_EVENT_YN": "*",
+     "FIV_GRADE_EVENT_YN": "*",
+     "SIX_GRADE_EVENT_YN": "*",
+     "SBTR_DD_SC_NM": "공휴일",
+     "LOAD_DTM": "20261116"
+    },
+    {
+     "ATPT_OFCDC_SC_CODE": "B10",
+     "SD_SCHUL_CODE": "7010084",
+     "AY": "2026",
+     "AA_YMD": "20260303",
+     "ATPT_OFCDC_SC_NM": "서울특별시교육청",
+     "SCHUL_NM": "서울과학고등학교",
+     "DGHT_CRSE_SC_NM": "주간",
+     "SCHUL_CRSE_SC_NM": "고등학교",
+     "EVENT_NM": "입학식",
+     "EVENT_CNTNT": "",
+     "ONE_GRADE_EVENT_YN": "Y",
+     "TW_GRADE_EVENT_YN": "N",
+     "THREE_GRADE_EVENT_YN": "N",
+     "FR_GRADE_EVENT_YN": "*",
+     "FIV_GRADE_EVENT_YN": "*",
+     "SIX_GRADE_EVENT_YN": "*",
+     "SBTR_DD_SC_NM": "해당없음",
+     "LOAD_DTM": "20261116"
+    },
+    {
+     "ATPT_OFCDC_SC_CODE": "B10",
+     "SD_SCHUL_CODE": "7010084",
+     "AY": "2026",
+     "AA_YMD": "20260303",
+     "ATPT_OFCDC_SC_NM": "서울특별시교육청",
+     "SCHUL_NM": "서울과학고등학교",
+     "DGHT_CRSE_SC_NM": "주간",
+     "SCHUL_CRSE_SC_NM": "고등학교",
+     "EVENT_NM": "개학식",
+     "EVENT_CNTNT": "",
+     "ONE_GRADE_EVENT_YN": "N",
+     "TW_GRADE_EVENT_YN": "Y",
+     "THREE_GRADE_EVENT_YN": "Y",
+     "FR_GRADE_EVENT_YN": "*",
+     "FIV_GRADE_EVENT_YN": "*",
+     "SIX_GRADE_EVENT_YN": "*",
+     "SBTR_DD_SC_NM": "해당없음",
+     "LOAD_DTM": "20261116"
+    },
+    {
+     "ATPT_OFCDC_SC_CODE": "B10",
+     "SD_SCHUL_CODE": "7010084",
+     "AY": "2026",
+     "AA_YMD": "20260303",
+     "ATPT_OFCDC_SC_NM": "서울특별시교육청",
+     "SCHUL_NM": "서울과학고등학교",
+     "DGHT_CRSE_SC_NM": "주간",
+     "SCHUL_CRSE_SC_NM": "고등학교",
+     "EVENT_NM": "봉사활동",
+     "EVENT_CNTNT": "",
+     "ONE_GRADE_EVENT_YN": "N",
+     "TW_GRADE_EVENT_YN": "Y",
+     "THREE_GRADE_EVENT_YN": "N",
+     "FR_GRADE_EVENT_YN": "*",
+     "FIV_GRADE_EVENT_YN": "*",
+     "SIX_GRADE_EVENT_YN": "*",
+     "SBTR_DD_SC_NM": "해당없음",
+     "LOAD_DTM": "20261116"
+    }
+   ]
+  }
+ ]
+}
