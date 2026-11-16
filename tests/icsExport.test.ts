@@ -94,7 +94,7 @@ describe('ics export', () => {
     ).not.toContain('VTIMEZONE');
   });
 
-  test('a timed export keeps its wall time when read in another zone', () => {
+  test('a timed export is read as Seoul time by a calendar in another zone', () => {
     const timed = ev({
       id: 't1',
       title: '회의',
@@ -103,9 +103,9 @@ describe('ics export', () => {
       time: '09:00',
     });
     const r = parseIcsText(eventsToIcs([timed], { now: NOW }), 'x.ics', {
-      timeZone: 'America/Los_Angeles',
+      timeZone: 'UTC',
     });
-    expect(r.events.map((e) => [e.start, e.time])).toEqual([['2026-12-10', '09:00']]);
+    expect(r.events.map((e) => [e.start, e.time])).toEqual([['2026-12-10', '00:00']]);
   });
 
   test('our own importer reads the export back', () => {
