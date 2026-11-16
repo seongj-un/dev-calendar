@@ -2,7 +2,7 @@
 // @vitest-environment-options {"url": "http://localhost/#/2026-12-10"}
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from '../src/app/app';
-import { exportEvents } from '../src/app/export/actions';
+import { exportEvents, importBackupFile } from '../src/app/export/actions';
 import { EventStore, type StorageLike } from '../src/store/store';
 import type { EventInput } from '../src/model/event';
 
@@ -219,5 +219,62 @@ describe('export', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     expect(exportEvents(store, 'ics', NOW)).toBe('내보낼 일정이 없습니다.');
     expect(click).not.toHaveBeenCalled();
+  });
+});
+
+describe('JSON backup import', () => {
+  /** Makes the file picker answer with `content` (or nothing) without a real dialog. */
+  function pick(content: string | null) {
+    vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (
+      this: HTMLInputElement,
+    ) {
+      if (content === null) {
+        this.dispatchEvent(new Event('cancel'));
+        return;
+      }
+      Object.defineProperty(this, 'files', {
+        value: [{ name: 'backup.json', text: () => Promise.resolve(content) }],
+      });
+      this.dispatchEvent(new Event('change'));
+    });
+  }
+
+  test('merges a backup and reports added, skipped and unreadable rows', async () => {
+    const { store } = setup([{ title: '배포', start: '2026-12-20' }]);
+    const backup = store.exportBackup();
+    store.add({ title: '새 일정', start: '2026-12-22' });
+    const doc = JSON.parse(backup);
+    doc.events.push({ title: '', start: 'x' });
+    doc.events.push({
+      ...doc.events[0],
+      id: 'other',
+      title: '다른 일정',
+      start: '2026-12-23',
+      end: '2026-12-23',
+    });
+    pick(JSON.stringify(doc));
+    const message = await importBackupFile(store);
+    expect(message).toBe('백업을 가져왔습니다. 새 일정 1개, 이미 있어서 건너뜀 1개, 읽지 못함 1개');
+    expect(
+      store
+        .list()
+        .map((e) => e.title)
+        .sort(),
+    ).toEqual(['다른 일정', '배포', '새 일정']);
+  });
+
+  test('says what is wrong with a file that is not a backup, and keeps the data', async () => {
+    const { store } = setup([{ title: '배포', start: '2026-12-20' }]);
+    pick('BEGIN:VCALENDAR');
+    expect(await importBackupFile(store)).toBe('JSON 파일이 아닙니다.');
+    pick('{"app":"other","events":[]}');
+    expect(await importBackupFile(store)).toBe('datebook 백업 파일이 아닙니다.');
+    expect(store.list()).toHaveLength(1);
+  });
+
+  test('cancelling the picker changes nothing and shows nothing', async () => {
+    const { store } = setup();
+    pick(null);
+    expect(await importBackupFile(store)).toBeNull();
   });
 });

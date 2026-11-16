@@ -1,7 +1,7 @@
-import { isoWeek, type IsoDate } from '../../model/date';
+import type { IsoDate } from '../../model/date';
 import { CATEGORY_LABELS, type CalendarEvent } from '../../model/event';
 import { h, isMac, type Child } from '../dom';
-import { monthDayWeekday } from '../format';
+import { monthDayWeekday, weekLabel } from '../format';
 import { icon } from '../icons';
 import type { LineParse } from '../lineParse';
 import {
@@ -113,7 +113,7 @@ function describeDraft(d: NewEventDraft): Child[] {
   if (d.time) parts.push(d.endTime ? `${d.time}-${d.endTime}` : d.time);
   if (d.category) parts.push(CATEGORY_LABELS[d.category]);
   for (const t of d.tags) parts.push(`#${t}`);
-  parts.push(`${isoWeek(d.start).week}주차`);
+  parts.push(weekLabel(d.start));
   return parts.map((p) => h('span', { class: 'tok' }, p));
 }
 

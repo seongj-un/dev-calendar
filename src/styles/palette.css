@@ -152,6 +152,7 @@
   width: 720px;
 }
 .help-grid {
+  padding-bottom: 22px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 22px 40px;
@@ -190,9 +191,11 @@
 }
 
 .top-search {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
   width: auto;
-  padding: 0 10px;
+  padding: 0 8px 0 10px;
   color: var(--mute);
 }
 
@@ -215,14 +218,16 @@
   .help-sheet {
     width: 100%;
   }
+  /* The sheet exists to show keys, so keep them on small screens (external keyboards). */
+  .help-sheet kbd {
+    display: inline-grid !important;
+  }
   .help-grid {
     grid-template-columns: 1fr;
   }
   .top-search {
     width: 44px;
+    justify-content: center;
     padding: 0;
-  }
-  .top-search .top-search-label {
-    display: none;
   }
 }
